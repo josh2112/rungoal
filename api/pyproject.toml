@@ -3,10 +3,26 @@ name = "rungoal"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
+authors = [
+    { name = "Joshua Foster", email = "josh2112@gmail.com" }
+]
 requires-python = ">=3.11"
 dependencies = [
+    "alembic>=1.18.4",
     "fastapi[standard]>=0.136.3",
     "google-api-python-client>=2.197.0",
     "google-auth-oauthlib>=1.4.0",
     "python-jose[cryptography]>=3.5.0",
+    "sqlalchemy-utils>=0.42.1",
+    "sqlmodel>=0.0.38",
 ]
+
+[project.scripts]
+rungoal = "rungoal:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[lint]
+select = ["ALL"]
