@@ -27,5 +27,3 @@ if DepSettings().DEV:
     )
 
 init_exception_handlers(app)
-
-used_refresh_tokens = auth.UsedRefreshTokens()

@@ -9,7 +9,7 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from jose import JWTError, jwt
 
-from rungoal.models import Authorization, GoogleApiAuthCode, User, UserBase, UserWithGoogleCreds
+from rungoal.models import Authentication, GoogleApiAuthCode, UserWithGoogleCreds
 from rungoal.settings import Settings
 
 _settings = Settings.model_validate({})
@@ -145,7 +145,7 @@ def get_google_user(auth: GoogleApiAuthCode) -> UserWithGoogleCreds:
     )
 
 
-def generate_token_pair(sub: str) -> Authorization:
-    return Authorization(
+def generate_token_pair(sub: str) -> Authentication:
+    return Authentication(
         access_token=access_token_encode(sub), refresh_token=refresh_token_encode(sub)
     )

@@ -13,35 +13,54 @@ interface Authorizaton {
     refresh_token: string
 }
 
-const error = ref<ApiError>();
+interface User {
+    name: string
+    email: string
+    avatar_uri: string
+}
 
+const error = ref<ApiError>();
 const auth = ref<Authorizaton>();
+const user = ref<User>();
+
+const doLoginFlow = async (code?: string) => {
+    try {
+        let resp = await fetch(`http://localhost:8000/api/auth/${code ? 'google' : 'dev'}`, {
+            method: code ? 'POST' : 'GET',
+            headers: { 'Content-Type': 'application/json' },
+            body: code ? JSON.stringify({ code }) : undefined
+        });
+
+        if (!resp.ok) {
+            error.value = await resp.json();
+            return;
+        }
+
+        auth.value = await resp.json();
+
+        resp = await fetch('http://localhost:8000/api/user/me', {
+            headers: { 'Authorization': `Bearer ${auth.value!.access_token}` }
+        })
+
+        if (!resp.ok) {
+            error.value = await resp.json();
+            return;
+        }
+
+        user.value = await resp.json()
+    } catch (ex) {
+        error.value = {
+            title: "Request error",
+            detail: ex,
+            source: "(local)"
+        } as ApiError
+    }
+}
 
 const { login, isReady } = useCodeClient({
     scope: 'https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly',
 
-    onSuccess: async (response) => {
-        try {
-            const resp = await fetch('http://localhost:8000/api/auth/callback/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code: response.code })
-            });
-            if (!resp.ok) {
-                // Try to read the error body if the server sent details
-                error.value = await resp.json();
-            }
-            else {
-                auth.value = await resp.json();
-            }
-        } catch (ex) {
-            error.value = {
-                title: "Request error",
-                detail: ex,
-                source: "(local)"
-            } as ApiError
-        }
-    },
+    onSuccess: async (response) => { doLoginFlow(response.code) },
     onError: (ex) => {
         error.value = {
             title: "Request error",
@@ -50,16 +69,25 @@ const { login, isReady } = useCodeClient({
         } as ApiError
     },
 });
+
 </script>
 
 <template>
     <button :disabled="!isReady" @click="() => login()">
         Login
     </button>
+    <button @click="() => doLoginFlow()">
+        Login (dev)
+    </button>
     <div v-if="error">
-        {{ error.title }}: {{ error.detail }} ({{ error.source }})
+        <pre>{{ error }}</pre>
     </div>
     <div v-if="auth">
         <pre>{{ auth }}</pre>
+    </div>
+    <div v-if="user">
+        <div>{{ user.name }}</div>
+        <div>{{ user.email }}</div>
+        <img :src="user.avatar_uri" />
     </div>
 </template>

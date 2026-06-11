@@ -13,7 +13,7 @@ class GoogleApiAuthCode(BaseModel):
     code: str
 
 
-class Authorization(BaseModel):
+class Authentication(BaseModel):
     access_token: str
     refresh_token: str
 
