@@ -3,7 +3,6 @@ from importlib.metadata import version
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
-from rungoal import auth
 from rungoal.cors import allowed_origins
 from rungoal.deps import DepSettings
 from rungoal.errors import init_exception_handlers

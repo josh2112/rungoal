@@ -1,0 +1,23 @@
+@import "bootstrap/scss/functions";
+
+$primary: #5ce1e6;
+
+$primary-dark: shade-color($primary, 30%);
+$primary-light: tint-color($primary, 97%);
+
+@import "bootstrap/scss/variables";
+@import "bootstrap/scss/variables-dark";
+
+$custom-colors: (
+    "primary-dark": $primary-dark,
+    "primary-light": $primary-light,
+);
+
+$theme-colors: map-merge($theme-colors, $custom-colors);
+
+$link-color: $primary-dark;
+
+$hr-color: $primary;
+$hr-opacity: 1;
+
+@import "bootstrap/scss/bootstrap";

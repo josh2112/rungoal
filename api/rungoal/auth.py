@@ -9,7 +9,7 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from jose import JWTError, jwt
 
-from rungoal.models import Authentication, GoogleApiAuthCode, UserWithGoogleCreds
+from rungoal.models import GoogleApiAuthCode, UserWithGoogleCreds
 from rungoal.settings import Settings
 
 _settings = Settings.model_validate({})
@@ -85,19 +85,6 @@ async def dep_bearer_token(request: Request) -> Token | None:
     return access_token_decode(token)
 
 
-class OAuth2RefreshRequestForm:
-    """Token refresh request form"""
-
-    def __init__(
-        self,
-        grant_type: str = Form(None, pattern="refresh_token"),
-        refresh_token: str = Form(...),
-    ):
-        self.grant_type = grant_type
-        self.refresh_token_encoded = refresh_token
-        self.refresh_token = refresh_token_decode(refresh_token)
-
-
 class UsedRefreshTokens:
     """Manages refresh tokens ensuring one-time use"""
 
@@ -145,7 +132,7 @@ def get_google_user(auth: GoogleApiAuthCode) -> UserWithGoogleCreds:
     )
 
 
-def generate_token_pair(sub: str) -> Authentication:
-    return Authentication(
-        access_token=access_token_encode(sub), refresh_token=refresh_token_encode(sub)
-    )
+def generate_token_pair(sub: str) -> [str, str]:
+    return _token_encode(
+        sub, _JWT_ACCESS_TOKEN_EXPIRY_MINS, _settings.JWT_ACCESS_TOKEN_KEY
+    ), _token_encode(sub, _JWT_REFRESH_TOKEN_EXPIRY_MINS, _settings.JWT_REFRESH_TOKEN_KEY)
