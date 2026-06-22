@@ -2,7 +2,7 @@ import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from fastapi import Form, HTTPException, status
+from fastapi import HTTPException, status
 from fastapi.requests import Request
 from fastapi.security.utils import get_authorization_scheme_param
 from google_auth_oauthlib.flow import Flow
@@ -117,16 +117,21 @@ def get_google_user(auth: GoogleApiAuthCode) -> UserWithGoogleCreds:
     )
 
     flow.fetch_token(code=auth.google_access_code)
+    
+    if type(flow.credentials.token) is not str or type(flow.credentials.refresh_token) is not str:
+        raise Exception( "Google OAuth2 flow returned unexpected credentials")
 
     user_info = build("oauth2", "v2", credentials=flow.credentials).userinfo().get().execute()
 
     # The picture URL has "=sXX-c" appended to it, where the XX is the size in
     # pixels. We'll remove that, and the frontend can get the picture in whatever
     # size it likes.
+    avatar_uri = re.sub(r"=s\d+-c$", "", user_info.get("picture"))
+
     return UserWithGoogleCreds(
         name=user_info.get("name"),
         email=user_info.get("email"),
-        avatar_uri=re.sub(r"=s\d+-c$", "", user_info.get("picture")),
+        avatar_uri=avatar_uri,
         google_api_access_token=flow.credentials.token,
         google_api_refresh_token=flow.credentials.refresh_token,
     )

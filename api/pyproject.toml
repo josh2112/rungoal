@@ -15,10 +15,11 @@ dependencies = [
     "python-jose[cryptography]>=3.5.0",
     "sqlalchemy-utils>=0.42.1",
     "sqlmodel>=0.0.38",
+    "typer>=0.26.7",
 ]
 
 [project.scripts]
-rungoal = "rungoal:main"
+rungoal-cli = "rungoal.cli:app"
 
 [tool.fastapi]
 entrypoint = "rungoal.main:app"

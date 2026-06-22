@@ -9,12 +9,11 @@ from sqlmodel import Session
 from rungoal import auth, crud
 from rungoal.database import init_db
 from rungoal.models import User
-from rungoal.settings import settings, Settings
+from rungoal.settings import Settings, settings
 
 
 @cache
 def dep_settings():
-    """Returns a new settings object. Only called once!"""
     return settings
 
 
@@ -27,7 +26,10 @@ def dep_db_engine(settings: DepSettings) -> Engine:
     return init_db(settings.DEBUG_SQL)
 
 
-def dep_db(engine: Annotated[Engine, Depends(dep_db_engine)]):
+_DepEngine = Annotated[Engine, Depends(dep_db_engine)]
+
+
+def dep_db(engine: _DepEngine):
     with Session(engine) as session:
         yield session
 
