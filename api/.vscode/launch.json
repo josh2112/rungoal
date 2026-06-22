@@ -9,8 +9,7 @@
             "type": "debugpy",
             "request": "launch",
             "module": "fastapi",
-            "args": ["dev", "${workspaceFolder}/api/rungoal/main.py"],
-            "cwd": "${workspaceFolder}/api"
+            "args": ["dev"]
         }
     ]
 }

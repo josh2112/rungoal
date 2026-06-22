@@ -32,7 +32,7 @@ def google_auth(auth_code: GoogleApiAuthCode, db: DepDb, response: Response) -> 
     user = crud.get_user_by_email(db, google_user.email)
     if user:
         # Update the existing user with the latest data (keeping the existing ID)
-        db.add(User(id=user.id, **google_user.model_dump()))
+        db.merge(User(id=user.id, **google_user.model_dump()))
         db.commit()
     else:
         user = crud.create_user(db, google_user)

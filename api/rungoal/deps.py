@@ -9,13 +9,13 @@ from sqlmodel import Session
 from rungoal import auth, crud
 from rungoal.database import init_db
 from rungoal.models import User
-from rungoal.settings import Settings
+from rungoal.settings import settings, Settings
 
 
 @cache
 def dep_settings():
     """Returns a new settings object. Only called once!"""
-    return Settings()
+    return settings
 
 
 DepSettings = Annotated[Settings, Depends(dep_settings)]

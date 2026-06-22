@@ -12,7 +12,4 @@ def init_db(echo: bool = False) -> Engine:
     engine = create_engine(db_url, connect_args={"check_same_thread": False}, echo=echo)
     event.listen(engine, "connect", lambda c, _: c.execute("PRAGMA foreign_keys = ON"))
 
-    """Creates the DB or upgrades it to the latest version. Essentially 'alembic upgrade head'."""
-    command.upgrade(alembic_config, "head")
-
     return engine

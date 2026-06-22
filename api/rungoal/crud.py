@@ -3,7 +3,7 @@ from typing import Any
 from sqlmodel import Session, select
 
 from rungoal.errors import RecordNotFoundError
-from rungoal.models import User, UserBase, UserWithGoogleCreds
+from rungoal.models import User, UserWithGoogleCreds
 
 
 def _add_record(db: Session, record: Any) -> Any:

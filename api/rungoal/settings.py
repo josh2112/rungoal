@@ -12,3 +12,5 @@ class Settings(BaseSettings):
     # Optional
     DEV: bool = False
     DEBUG_SQL: bool = False
+
+settings = Settings.model_validate( {} )

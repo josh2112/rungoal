@@ -116,7 +116,7 @@ def get_google_user(auth: GoogleApiAuthCode) -> UserWithGoogleCreds:
         redirect_uri="postmessage",
     )
 
-    flow.fetch_token(code=auth.code)
+    flow.fetch_token(code=auth.google_access_code)
 
     user_info = build("oauth2", "v2", credentials=flow.credentials).userinfo().get().execute()
 
@@ -132,7 +132,7 @@ def get_google_user(auth: GoogleApiAuthCode) -> UserWithGoogleCreds:
     )
 
 
-def generate_token_pair(sub: str) -> [str, str]:
+def generate_token_pair(sub: str) -> tuple[str, str]:
     return _token_encode(
         sub, _JWT_ACCESS_TOKEN_EXPIRY_MINS, _settings.JWT_ACCESS_TOKEN_KEY
     ), _token_encode(sub, _JWT_REFRESH_TOKEN_EXPIRY_MINS, _settings.JWT_REFRESH_TOKEN_KEY)

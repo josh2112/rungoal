@@ -20,6 +20,9 @@ dependencies = [
 [project.scripts]
 rungoal = "rungoal:main"
 
+[tool.fastapi]
+entrypoint = "rungoal.main:app"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

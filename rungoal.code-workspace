@@ -1,0 +1,18 @@
+{
+    "folders": [
+        {
+            "path": "api",
+        },
+        {
+            "path": "ui",
+        },
+    ],
+    "launch": {
+        "compounds": [
+            {
+                "name": "Launch Full Stack",
+                "configurations": ["Backend", "Frontend"],
+            },
+        ],
+    },
+}

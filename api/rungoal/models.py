@@ -4,13 +4,13 @@ from sqlalchemy_utils import EncryptedType
 from sqlalchemy_utils.types.encrypted.encrypted_type import AesEngine
 from sqlmodel import AutoString, Field, SQLModel
 
-from rungoal.settings import Settings
+from rungoal.settings import settings
 
 # ========= Auth ========
 
 
 class GoogleApiAuthCode(BaseModel):
-    code: str
+    google_access_code: str
 
 
 class AccessToken(BaseModel):
@@ -30,7 +30,7 @@ class UserWithGoogleCreds(UserBase):
     google_api_access_token: str
     google_api_refresh_token: str = Field(
         sa_column=Column(
-            EncryptedType(Unicode, Settings().GOOGLE_REFRESH_TOKEN_KEY, AesEngine, "pkcs5")
+            EncryptedType(Unicode, settings.GOOGLE_REFRESH_TOKEN_KEY, AesEngine, "pkcs5")
         )
     )
 

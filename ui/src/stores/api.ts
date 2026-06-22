@@ -3,10 +3,15 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import type { ErrorResponse } from "../models";
 
-export const useApi = defineStore('api', () => {
+export const useApi = defineStore("api", () => {
     const api = axios.create({
         baseURL: `${import.meta.env.BASE_URL}/api`,
         withCredentials: true,
+        headers: {
+            post: {
+                "Content-Type": "application/json",
+            },
+        },
     });
 
     const errors = ref<ErrorResponse[]>([]);
@@ -20,7 +25,9 @@ export const useApi = defineStore('api', () => {
 
     const processQueue = (error: any, token: string | null = null) => {
         if (failedQueue.length) {
-            console.log(`Reprocessing ${failedQueue.length} queued requests...`)
+            console.log(
+                `Reprocessing ${failedQueue.length} queued requests...`,
+            );
         }
         failedQueue.forEach((prom) => {
             if (error) {
@@ -40,7 +47,7 @@ export const useApi = defineStore('api', () => {
             }
             return config;
         },
-        (error) => Promise.reject(error)
+        (error) => Promise.reject(error),
     );
 
     api.interceptors.response.use(
@@ -56,25 +63,27 @@ export const useApi = defineStore('api', () => {
                 if (isRefreshing) {
                     return new Promise(function (resolve, reject) {
                         failedQueue.push({ resolve, reject });
-                    }).then((token) => {
-                        originalRequest.headers.Authorization = `Bearer ${token}`;
-                        return api(originalRequest);
-                    }).catch((err) => {
-                        return Promise.reject(err);
-                    });
+                    })
+                        .then((token) => {
+                            originalRequest.headers.Authorization = `Bearer ${token}`;
+                            return api(originalRequest);
+                        })
+                        .catch((err) => {
+                            return Promise.reject(err);
+                        });
                 }
 
                 isRefreshing = true;
 
                 try {
-                    console.log("Attempting credential refresh...")
+                    console.log("Attempting credential refresh...");
                     const refreshResponse = await axios.post(
                         `${import.meta.env.BASE_URL}/api/auth/refresh`,
                         {},
-                        { withCredentials: true }
+                        { withCredentials: true },
                     );
 
-                    console.log('Credentials obtained')
+                    console.log("Credentials obtained");
                     accessToken.value = refreshResponse.data.access_token;
 
                     // Process the queued requests with the new token
@@ -83,7 +92,6 @@ export const useApi = defineStore('api', () => {
                     // Retry the original request
                     originalRequest.headers.Authorization = `Bearer ${accessToken.value}`;
                     return api(originalRequest);
-
                 } catch (refreshError) {
                     // If the refresh token is also expired/invalid, the user must log in again
                     processQueue(refreshError, null);
@@ -95,15 +103,13 @@ export const useApi = defineStore('api', () => {
                 } finally {
                     isRefreshing = false;
                 }
-            }
-            else if (error.response.data) {
-                errors.value.push(error.response.data as ErrorResponse)
+            } else if (error.response.data) {
+                errors.value.push(error.response.data as ErrorResponse);
             }
 
             return Promise.reject(error);
-        }
+        },
     );
 
-    return { get: api.get, post: api.post, accessToken, errors }
-})
-
+    return { get: api.get, post: api.post, accessToken, errors };
+});
