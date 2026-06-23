@@ -23,6 +23,8 @@ _GOOGLE_API_SCOPES = [
     "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/userinfo.profile",
     "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly",
+    "https://www.googleapis.com/auth/googlehealth.location.readonly",
+    "https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly",
 ]
 
 
@@ -117,9 +119,9 @@ def get_google_user(auth: GoogleApiAuthCode) -> UserWithGoogleCreds:
     )
 
     flow.fetch_token(code=auth.google_access_code)
-    
+
     if type(flow.credentials.token) is not str or type(flow.credentials.refresh_token) is not str:
-        raise Exception( "Google OAuth2 flow returned unexpected credentials")
+        raise Exception("Google OAuth2 flow returned unexpected credentials")
 
     user_info = build("oauth2", "v2", credentials=flow.credentials).userinfo().get().execute()
 
