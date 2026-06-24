@@ -1,7 +1,6 @@
 import json
 import threading
-from collections.abc import Callable, Generator, Iterable, Iterator
-from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Generator, Iterator
 from datetime import datetime, timedelta
 from functools import cache
 
@@ -54,9 +53,10 @@ class _GoogleApiAuth(httpx.Auth):
             yield request
 
 
-def _datetime_chunk(
+def datetime_chunk(
     from_: datetime, to: datetime, size: timedelta
 ) -> Iterator[tuple[datetime, datetime]]:
+    """Breaks up the given date-time range into multiple sub-ranges of a given size."""
     cur = from_
     nxt = from_ + size
     while nxt < to:
@@ -66,62 +66,33 @@ def _datetime_chunk(
     yield cur, to
 
 
-_DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
-
-
-def _make_time_filter(field: str, range: tuple[datetime, datetime], suffix: str = "") -> str:
-    a = f'{field} >= "{range[0].strftime(_DATETIME_FORMAT)}{suffix}"'
-    b = f'{field} < "{range[1].strftime(_DATETIME_FORMAT)}{suffix}"'
-    return f"{a} AND {b}"
-
-
 class GoogleHealthClient(httpx.Client):
+    GOOGLE_DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
+
     def __init__(self, user: User, db: Session, *args, **kwargs):
-        kwargs.setdefault("base_url", "https://health.googleapis.com/v4/")
+        kwargs.setdefault("base_url", "https://health.googleapis.com/v4/users/me/dataTypes")
         kwargs["auth"] = _GoogleApiAuth(user, db)
         kwargs.setdefault("headers", {"Accept": "application/json"})
         super().__init__(*args, **kwargs)
 
-    def fetch_runs(self, from_: datetime, to: datetime):
-        def _fetch(range: tuple[datetime, datetime]):
-            response = self.get(
-                "/users/me/dataTypes/exercise/dataPoints:reconcile",
-                params={"filter": _make_time_filter("exercise.interval.civil_start_time", range)},
-            )
-            response.raise_for_status()
-            return response.json()
-
-        with ThreadPoolExecutor() as executor:
-            results = executor.map(_fetch, list(_datetime_chunk(from_, to, timedelta(days=10))))
-            return [
-                dp
-                for r in results
-                for dp in r["dataPoints"]
-                if dp["exercise"]["exerciseType"] == "RUNNING"
-            ]
-
-    def fetch_tcx(
-        self, exercise_ids: list[str], on_update: Callable[[], None]
-    ) -> Iterable[tuple[str, bytes]]:
-        def _fetch(id: str):
-            response = self.get(
-                f"/users/me/dataTypes/exercise/dataPoints/{id}:exportExerciseTcx?alt=media",
-            )
-            response.raise_for_status()
-            on_update()
-            return id, response.content
-
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            return executor.map(_fetch, exercise_ids)
-
-    def fetch_heart_rates(self, from_: datetime, to: datetime):
+    def fetch_runs(self, range_: tuple[datetime, datetime]):
+        field = "exercise.interval.civil_start_time"
+        a = f'{field}>= "{range_[0].strftime(self.GOOGLE_DATETIME_FORMAT)}"'
+        b = f'{field} < "{range_[1].strftime(self.GOOGLE_DATETIME_FORMAT)}"'
         response = self.get(
-            "/users/me/dataTypes/heart-rate/dataPoints:reconcile",
-            params={
-                "filter": _make_time_filter(
-                    "heart_rate.sample_time.physical_time", (from_, to), suffix="Z"
-                )
-            },
+            "/exercise/dataPoints:reconcile",
+            params={"filter": f"{a} AND {b}"},
         )
         response.raise_for_status()
-        return response.json()
+        return [
+            dp
+            for dp in response.json()["dataPoints"]
+            if dp["exercise"]["exerciseType"] == "RUNNING"
+        ]
+
+    def fetch_tcx(self, exercise_id: str) -> bytes:
+        response = self.get(
+            f"/exercise/dataPoints/{exercise_id}:exportExerciseTcx?alt=media",
+        )
+        response.raise_for_status()
+        return response.content
