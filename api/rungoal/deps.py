@@ -7,26 +7,18 @@ from sqlalchemy import Engine
 from sqlmodel import Session
 
 from rungoal import auth, crud
-from rungoal.database import init_db
+from rungoal.database import get_engine
 from rungoal.models import User
 from rungoal.settings import Settings, settings
 
 
 @cache
-def dep_settings():
+def dep_settings() -> Settings:
     return settings
 
 
 DepSettings = Annotated[Settings, Depends(dep_settings)]
-
-
-@cache
-def dep_db_engine(settings: DepSettings) -> Engine:
-    """Initialize the production database. Only called once!"""
-    return init_db(settings.DEBUG_SQL)
-
-
-_DepEngine = Annotated[Engine, Depends(dep_db_engine)]
+_DepEngine = Annotated[Engine, Depends(get_engine)]
 
 
 def dep_db(engine: _DepEngine):

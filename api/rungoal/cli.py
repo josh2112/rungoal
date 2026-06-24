@@ -8,18 +8,30 @@ from typing import Annotated
 import httpx
 import typer
 from rich.progress import Progress, SpinnerColumn, TextColumn, track
-from sqlmodel import select
+from sqlmodel import Session, select
 
 from rungoal.crud import get_user
-from rungoal.deps import dep_db, dep_db_engine
+from rungoal.database import get_engine
 from rungoal.google import GoogleHealthClient
 from rungoal.models import User
-from rungoal.settings import settings
 
 
 @contextlib.contextmanager
 def get_db():
-    return dep_db(dep_db_engine(settings))  # type: ignore
+    with Session(get_engine()) as session:
+        yield session
+
+
+WritableFolderOpt = typer.Argument(
+    file_okay=False,
+    writable=True,
+    resolve_path=True,
+)
+
+RunsFolderOpt = typer.Argument(
+    file_okay=False,
+    resolve_path=True,
+)
 
 
 app = typer.Typer()
@@ -36,15 +48,8 @@ def users():
 def fetch_runs(
     user_id: int,
     from_: datetime,
-    output: Annotated[
-        Path,
-        typer.Option(
-            file_okay=False,
-            writable=True,
-            resolve_path=True,
-        ),
-    ],
-    to: datetime = None,
+    output: Annotated[Path, WritableFolderOpt],
+    to: datetime | None = None,
 ):
     from_ = from_.replace(tzinfo=UTC)
     to = to.replace(tzinfo=UTC) if to else datetime.now(UTC)
@@ -53,7 +58,7 @@ def fetch_runs(
         with GoogleHealthClient(user, db) as client:
             folder = output / "runs"
             folder.mkdir(parents=True, exist_ok=True)
-            with Progress(SpinnerColumn(), TextColumn("Downloading runs..."), transient=True) as p:
+            with Progress(SpinnerColumn(), TextColumn("Downloading runs..."), transient=True) as _:
                 try:
                     for ex in client.fetch_runs(from_, to):
                         path = (folder / ex["dataPointName"].split("/")[-1]).with_suffix(".json")
@@ -67,33 +72,29 @@ def fetch_runs(
 @app.command()
 def fetch_tcx(
     user_id: int,
-    output: Annotated[
-        Path,
-        typer.Option(
-            file_okay=False,
-            writable=True,
-            resolve_path=True,
-        ),
-    ],
-    from_runs_path: Annotated[
-        Path,
-        typer.Option(
-            file_okay=False,
-            resolve_path=True,
-        ),
-    ] = None,
-    exercise_id: int = None,
+    output: Annotated[Path, WritableFolderOpt],
+    from_runs_path: Annotated[Path | None, RunsFolderOpt] = None,
+    exercise_id: str | None = None,
 ):
-    if not from_runs_path and not exercise_id:
+    if exercise_id:
+        ids = [exercise_id]
+    elif from_runs_path:
+        ids = [f.stem for f in from_runs_path.glob("*.json")]
+    else:
         raise Exception("Either from-runs-path or exercise-id must be specified")
-    ids = [exercise_id] if exercise_id else [f.stem for f in from_runs_path.glob("*.json")]
+    folder = output / "tcx"
+    folder.mkdir(parents=True, exist_ok=True)
     with get_db() as db:
         user = get_user(db, user_id)
         with GoogleHealthClient(user, db) as client:
-            folder = output / "tcx"
-            folder.mkdir(parents=True, exist_ok=True)
+            with Progress() as p:
+                t1 = p.add_task("Downloading TCX files...", total=len(ids))
+
+                def on_update():
+                    p.update(t1, advance=1)
+
             try:
-                for ex_id, tcx in client.fetch_tcx(ids):
+                for ex_id, tcx in client.fetch_tcx(ids, on_update):
                     path = (folder / ex_id).with_suffix(".tcx")
                     with open(path, "wb") as f:
                         f.write(tcx)
@@ -104,32 +105,22 @@ def fetch_tcx(
 @app.command()
 def fetch_heart_rates(
     user_id: int,
-    output: Annotated[
-        Path,
-        typer.Option(
-            file_okay=False,
-            writable=True,
-            resolve_path=True,
-        ),
-    ],
-    from_runs_path: Annotated[
-        Path,
-        typer.Option(
-            file_okay=False,
-            resolve_path=True,
-        ),
-    ] = None,
-    exercise_id: str = None,
+    output: Annotated[Path, WritableFolderOpt],
+    from_runs_path: Annotated[Path | None, RunsFolderOpt] = None,
+    exercise_id: str | None = None,
 ):
-    if not from_runs_path and not exercise_id:
+    if exercise_id:
+        ids = [exercise_id]
+    elif from_runs_path:
+        ids = [f.stem for f in from_runs_path.glob("*.json")]
+    else:
         raise Exception("Either from-runs-path or exercise-id must be specified")
-    exercise_ids = [exercise_id] if exercise_id else [f.stem for f in from_runs_path.glob("*.json")]
     folder = output / "heartRates"
     folder.mkdir(parents=True, exist_ok=True)
     with get_db() as db:
         user = get_user(db, user_id)
         with GoogleHealthClient(user, db) as client:
-            for ex_id in track(exercise_ids):
+            for ex_id in track(ids, description="Downloading heart rate data..."):
                 with open(Path(output / "runs" / ex_id).with_suffix(".json")) as f:
                     ex = json.load(f)
                     from_ = datetime.fromisoformat(ex["exercise"]["interval"]["startTime"])

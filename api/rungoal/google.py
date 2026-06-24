@@ -1,6 +1,6 @@
 import json
 import threading
-from collections.abc import Generator, Iterator
+from collections.abc import Callable, Generator, Iterable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from functools import cache
@@ -54,9 +54,6 @@ class _GoogleApiAuth(httpx.Auth):
             yield request
 
 
-_DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
-
-
 def _datetime_chunk(
     from_: datetime, to: datetime, size: timedelta
 ) -> Iterator[tuple[datetime, datetime]]:
@@ -69,9 +66,12 @@ def _datetime_chunk(
     yield cur, to
 
 
-def _make_time_filter(field: str, range: tuple[datetime, datetime]) -> str:
-    a = f'{field} >= "{range[0].strftime(_DATETIME_FORMAT)}"'
-    b = f'{field} < "{range[1].strftime(_DATETIME_FORMAT)}"'
+_DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
+
+
+def _make_time_filter(field: str, range: tuple[datetime, datetime], suffix: str = "") -> str:
+    a = f'{field} >= "{range[0].strftime(_DATETIME_FORMAT)}{suffix}"'
+    b = f'{field} < "{range[1].strftime(_DATETIME_FORMAT)}{suffix}"'
     return f"{a} AND {b}"
 
 
@@ -100,12 +100,15 @@ class GoogleHealthClient(httpx.Client):
                 if dp["exercise"]["exerciseType"] == "RUNNING"
             ]
 
-    def fetch_tcx(self, exercise_ids: [str]) -> Iterator[tuple[int, bytes]]:
+    def fetch_tcx(
+        self, exercise_ids: list[str], on_update: Callable[[], None]
+    ) -> Iterable[tuple[str, bytes]]:
         def _fetch(id: str):
             response = self.get(
                 f"/users/me/dataTypes/exercise/dataPoints/{id}:exportExerciseTcx?alt=media",
             )
             response.raise_for_status()
+            on_update()
             return id, response.content
 
         with ThreadPoolExecutor(max_workers=4) as executor:
@@ -115,7 +118,9 @@ class GoogleHealthClient(httpx.Client):
         response = self.get(
             "/users/me/dataTypes/heart-rate/dataPoints:reconcile",
             params={
-                "filter": _make_time_filter("heart_rate.sample_time.physical_time", (from_, to))
+                "filter": _make_time_filter(
+                    "heart_rate.sample_time.physical_time", (from_, to), suffix="Z"
+                )
             },
         )
         response.raise_for_status()
