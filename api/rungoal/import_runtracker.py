@@ -13,7 +13,8 @@ _URL = (
 
 
 class RuntrackerRunSession(SQLModel, table=True):
-    __tablename__ = "runsession"
+    __tablename__: str = "runsession"
+
     id: int = Field(primary_key=True)
     date: date
     duration_secs: int
@@ -23,7 +24,7 @@ class RuntrackerRunSession(SQLModel, table=True):
 
 
 class RuntrackerGoal(SQLModel, table=True):
-    __tablename__ = "goal"
+    __tablename__: str = "goal"
     id: int = Field(primary_key=True)
     user_id: int
     start_date: date
@@ -32,7 +33,8 @@ class RuntrackerGoal(SQLModel, table=True):
 
 
 class RuntrackerUser(SQLModel, table=True):
-    __tablename__ = "user"
+    __tablename__: str = "user"
+
     id: int
     email: str
     goals: list[RuntrackerGoal]

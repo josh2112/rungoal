@@ -142,7 +142,7 @@ def fetch_tcx(
 
             def _fetch(id_: str):
                 tcx = client.fetch_tcx(id_)
-                path = (folder / id).with_suffix(".tcx")
+                path = (folder / id_).with_suffix(".tcx")
                 with open(path, "wb") as f:
                     f.write(tcx)
                 p.update(t1)
@@ -156,7 +156,7 @@ def fetch_tcx(
 
 
 @app.command()
-def sync_runtracker(user_id: int, runs_path: Annotated[Path | None, RunsFolderOpt]):
+def sync_runtracker(user_id: int, runs_path: Annotated[Path, RunsFolderOpt]):
     # Sync runs from the RunTracker app to our local DB. This assumes that all GH runs
     # have already been downloaded.
     from rungoal.import_runtracker import RuntrackerRunSession, RuntrackerUser, get_runtracker_db
@@ -203,34 +203,36 @@ def import_runs(user_id: int, runs_path: Annotated[Path, RunsFolderOpt]):
                 content = json.load(f)
             ex = content["exercise"]
             metrics = ex["metricsSummary"]
-            mobMet = ex.get("mobilityMetrics")
+            mobMet = metrics.get("mobilityMetrics")
 
             try:
                 db.add(
                     Run(
-                        userId=user.id,
-                        dataSource=RunDataSource.GOOGLE_HEALTH,
-                        startTime=datetime.fromisoformat(ex["interval"]["startTime"]),
-                        endTime=datetime.fromisoformat(ex["interval"]["endTime"]),
+                        user_id=user.id,
+                        data_source=RunDataSource.GOOGLE_HEALTH,
+                        start_time=datetime.fromisoformat(ex["interval"]["startTime"]),
+                        end_time=datetime.fromisoformat(ex["interval"]["endTime"]),
                         calories=metrics.get("caloriesKcal"),
-                        distanceMillimeters=metrics["distanceMillimeters"],
-                        averagePaceSecondsPerMeter=metrics["averagePaceSecondsPerMeter"],
+                        distance_millimeters=metrics["distanceMillimeters"],
+                        average_pace_seconds_per_meter=metrics["averagePaceSecondsPerMeter"],
                         steps=int(metrics["steps"]) if "steps" in metrics else None,
-                        elevationGainMillimeters=metrics.get("elevationGainMillimeters"),
-                        activeDuration=ex["activeDuration"],
-                        avgCadenceStepsPerMinute=mobMet["avgCadenceStepsPerMinute"]
+                        elevation_gain_millimeters=metrics.get("elevationGainMillimeters"),
+                        active_duration=float(ex["activeDuration"][:-1]),
+                        avg_cadence_steps_per_minute=mobMet["avgCadenceStepsPerMinute"]
                         if mobMet
                         else None,
-                        avgStrideLengthMillimeters=mobMet["avgStrideLengthMillimeters"]
+                        avg_stride_length_millimeters=mobMet["avgStrideLengthMillimeters"]
                         if mobMet
                         else None,
-                        avgVerticalOscillationMillimeters=mobMet[
+                        avg_vertical_oscillation_millimeters=mobMet[
                             "avgVerticalOscillationMillimeters"
                         ]
                         if mobMet
                         else None,
-                        avgVerticalRatio=mobMet["avgVerticalRatio"] if mobMet else None,
-                        avgGroundContactTimeDuration=mobMet["avgGroundContactTimeDuration"]
+                        avg_vertical_ratio=mobMet["avgVerticalRatio"] if mobMet else None,
+                        avg_ground_contact_time_duration=float(
+                            mobMet["avgGroundContactTimeDuration"][:-1]
+                        )
                         if mobMet
                         else None,
                     )

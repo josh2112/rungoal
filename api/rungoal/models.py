@@ -14,11 +14,11 @@ from rungoal.settings import settings
 
 
 class GoogleApiAuthCode(BaseModel):
-    googleAccessCode: str
+    google_access_code: str
 
 
 class AccessToken(BaseModel):
-    accessToken: str
+    access_token: str
 
 
 # ========= DB ========
@@ -27,12 +27,12 @@ class AccessToken(BaseModel):
 class UserBase(SQLModel):
     name: str
     email: EmailStr = Field(index=True, unique=True, sa_type=AutoString)
-    avatarUri: str
+    avatar_uri: str
 
 
 class UserWithGoogleCreds(UserBase):
-    googleApiAccessToken: str
-    googleApiRefreshToken: str = Field(
+    google_api_access_token: str
+    google_api_refresh_token: str = Field(
         sa_column=Column(
             EncryptedType(Unicode, settings.GOOGLE_REFRESH_TOKEN_KEY, AesEngine, "pkcs5")
         )
@@ -50,23 +50,25 @@ class RunDataSource(StrEnum):
 
 
 class Run(SQLModel, table=True):
+    __tablename__: str = "run"
+
     id: int | None = Field(default=None, primary_key=True)
-    userId: int | None = Field(default=None, foreign_key="user.id", ondelete="CASCADE")
+    user_id: int | None = Field(default=None, foreign_key="user.id", ondelete="CASCADE")
     user: User | None = Relationship(back_populates="runs")
-    dataSource: RunDataSource = Field(sa_column=Column(SQLEnum(RunDataSource), nullable=False))
-    startTime: datetime
-    endTime: datetime
+    data_source: RunDataSource = Field(sa_column=Column(SQLEnum(RunDataSource), nullable=False))
+    start_time: datetime
+    end_time: datetime
     calories: int | None
-    distanceMillimeters: int
-    averagePaceSecondsPerMeter: float
+    distance_millimeters: int
+    average_pace_seconds_per_meter: float
     steps: int | None
-    elevationGainMillimeters: int | None
-    activeDuration: int
-    avgCadenceStepsPerMinute: int | None
-    avgStrideLengthMillimeters: int | None
-    avgVerticalOscillationMillimeters: int | None
-    avgVerticalRatio: float | None
-    avgGroundContactTimeDuration: float | None
+    elevation_gain_millimeters: int | None
+    active_duration: float
+    avg_cadence_steps_per_minute: int | None
+    avg_stride_length_millimeters: int | None
+    avg_vertical_oscillation_millimeters: int | None
+    avg_vertical_ratio: float | None
+    avg_ground_contact_time_duration: float | None
 
 
 class Error(BaseModel):

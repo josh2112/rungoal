@@ -64,7 +64,7 @@ class GoogleHealthClient(httpx.Client):
 
     def fetch_runs(self, range_: TimeRange):
         field = "exercise.interval.civil_start_time"
-        a = f'{field}>= "{range_.start.strftime(self.GOOGLE_DATETIME_FORMAT)}"'
+        a = f'{field} >= "{range_.start.strftime(self.GOOGLE_DATETIME_FORMAT)}"'
         b = f'{field} < "{range_.end.strftime(self.GOOGLE_DATETIME_FORMAT)}"'
         response = self.get(
             "/exercise/dataPoints:reconcile",

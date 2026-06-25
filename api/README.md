@@ -1,20 +1,22 @@
 This is a website to track your run data. It's probably not what you're looking for, as I coded it for me and my specific needs.
+
 It's very much a work in progress.
 
 ## Planned capabilities
- - Login with Google
- - Sync run data from multiple sources:
-   - Google Health (formerly Fitbit)
-   - RunTracker (my previous run-tracking app)
- - Show you all kinds of interesting data such as
-   - Location of a run (computed from .TCX data)
-   - Heart rate trends
-   - A friendly name computed from the run data (such as "Afternoon Zone 2 run" or "Morning sprint")
- - Goal tracking:
-   - Set up one or more goals with a time period and target distance
-   - See current goal status (completion percentage, how far behind or ahead you are)
-   - See progress over time
- - Heart rate zone computation based on maximum heart rate seen
+
+- Login with Google
+- Sync run data from multiple sources:
+    - Google Health (formerly Fitbit)
+    - RunTracker (my previous run-tracking app)
+- Show you all kinds of interesting data such as
+    - Location of a run (computed from .TCX data)
+    - Heart rate trends
+    - A friendly name computed from the run data (such as "Afternoon Zone 2 run" or "Morning sprint")
+- Goal tracking:
+    - Set up one or more goals with a time period and target distance
+    - See current goal status (completion percentage, how far behind or ahead you are)
+    - See progress over time
+- Heart rate zone computation based on maximum heart rate seen
 
 # Coding details
 
@@ -43,7 +45,6 @@ Get heart rate data for user 1, for the time periods specified by runs in `tmp/r
 Get TCX files for user 1, for the runs found in `tmp/runs`, and put them in `tmp(/tcx)`:
 
 `uv run rungoal-cli fetch-tcx 1 --output tmp tmp/runs`
-
 
 ## Alembic
 
