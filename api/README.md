@@ -4,8 +4,8 @@ It's very much a work in progress.
 ## Planned capabilities
  - Login with Google
  - Sync run data from multiple sources:
-   - Fitbit
-   - Export from Samsung Health
+   - Google Health (formerly Fitbit)
+   - RunTracker (my previous run-tracking app)
  - Show you all kinds of interesting data such as
    - Location of a run (computed from .TCX data)
    - Heart rate trends

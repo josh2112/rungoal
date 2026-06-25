@@ -1,7 +1,6 @@
 import json
 import threading
-from collections.abc import Generator, Iterator
-from datetime import datetime, timedelta
+from collections.abc import Generator
 from functools import cache
 
 import google.auth.transport.requests
@@ -10,6 +9,7 @@ from google.oauth2.credentials import Credentials
 from sqlmodel import Session
 
 from rungoal.models import User
+from rungoal.utils import TimeRange
 
 
 @cache
@@ -53,19 +53,6 @@ class _GoogleApiAuth(httpx.Auth):
             yield request
 
 
-def datetime_chunk(
-    from_: datetime, to: datetime, size: timedelta
-) -> Iterator[tuple[datetime, datetime]]:
-    """Breaks up the given date-time range into multiple sub-ranges of a given size."""
-    cur = from_
-    nxt = from_ + size
-    while nxt < to:
-        yield cur, nxt
-        cur = nxt
-        nxt += size
-    yield cur, to
-
-
 class GoogleHealthClient(httpx.Client):
     GOOGLE_DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
@@ -75,20 +62,22 @@ class GoogleHealthClient(httpx.Client):
         kwargs.setdefault("headers", {"Accept": "application/json"})
         super().__init__(*args, **kwargs)
 
-    def fetch_runs(self, range_: tuple[datetime, datetime]):
+    def fetch_runs(self, range_: TimeRange):
         field = "exercise.interval.civil_start_time"
-        a = f'{field}>= "{range_[0].strftime(self.GOOGLE_DATETIME_FORMAT)}"'
-        b = f'{field} < "{range_[1].strftime(self.GOOGLE_DATETIME_FORMAT)}"'
+        a = f'{field}>= "{range_.start.strftime(self.GOOGLE_DATETIME_FORMAT)}"'
+        b = f'{field} < "{range_.end.strftime(self.GOOGLE_DATETIME_FORMAT)}"'
         response = self.get(
             "/exercise/dataPoints:reconcile",
             params={"filter": f"{a} AND {b}"},
         )
         response.raise_for_status()
-        return [
-            dp
-            for dp in response.json()["dataPoints"]
-            if dp["exercise"]["exerciseType"] == "RUNNING"
-        ]
+
+        content = response.json()
+        return (
+            [dp for dp in content["dataPoints"] if dp["exercise"]["exerciseType"] == "RUNNING"]
+            if "dataPoints" in content
+            else []
+        )
 
     def fetch_tcx(self, exercise_id: str) -> bytes:
         response = self.get(
