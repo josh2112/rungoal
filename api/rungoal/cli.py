@@ -245,6 +245,27 @@ def import_runs(user_id: int, runs_path: Annotated[Path, RunsFolderOpt]):
 
 
 @app.command()
+def import_tcx(user_id: int, tcx_path: Annotated[Path, RunsFolderOpt]):
+    import xml.etree.ElementTree as ET
+
+    ns = {"tcx": "http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2"}
+
+    def get_subel_text(el: ET.Element, name: str):
+        if (subel := el.find(f"./tcx:{name}", ns)) is not None:
+            return subel.text
+        return None
+
+    for p in tcx_path.glob("*.tcx"):
+        root = ET.parse(p).getroot()
+        for tp in root.findall(".//tcx:Trackpoint", ns):
+            if time := get_subel_text(tp, "Time"):
+                print(datetime.fromisoformat(time))
+            if alt := get_subel_text(tp, "AltitudeMeters"):
+                print(float(alt))
+            # TODO: Continue
+
+
+@app.command()
 def test_db_create():
     # 2. Configure the Database Connection
     # We use an in-memory SQLite database for testing, which wipes clean when the script stops.

@@ -53,8 +53,10 @@ class Run(SQLModel, table=True):
     __tablename__: str = "run"
 
     id: int | None = Field(default=None, primary_key=True)
+
     user_id: int | None = Field(default=None, foreign_key="user.id", ondelete="CASCADE")
     user: User | None = Relationship(back_populates="runs")
+
     data_source: RunDataSource = Field(sa_column=Column(SQLEnum(RunDataSource), nullable=False))
     start_time: datetime
     end_time: datetime
@@ -69,6 +71,24 @@ class Run(SQLModel, table=True):
     avg_vertical_oscillation_millimeters: int | None
     avg_vertical_ratio: float | None
     avg_ground_contact_time_duration: float | None
+
+    track_points: list["TrackPoint"] = Relationship(back_populates="run", cascade_delete=True)
+
+
+class TrackPoint(SQLModel):
+    __tablename__: str = "trackpoint"
+
+    id: int | None = Field(default=None, primary_key=True)
+
+    run_id: int | None = Field(default=None, foreign_key="run.id", ondelete="CASCADE")
+    run: Run | None = Relationship(back_populates="track_points")
+
+    elapsed_secs: int
+    lat_deg: float
+    lon_deg: float
+    alt_meters: float
+    distance_meters: float
+    heart_rate_bmp: int
 
 
 class Error(BaseModel):
