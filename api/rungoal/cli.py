@@ -1,5 +1,6 @@
 import contextlib
 import json
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -8,8 +9,7 @@ from typing import Annotated
 import httpx
 import typer
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from sqlalchemy import create_engine
-from sqlmodel import Session, SQLModel, select
+from sqlmodel import Session, select
 
 from rungoal.crud import get_user
 from rungoal.database import get_engine
@@ -26,13 +26,13 @@ def get_db():
         yield session
 
 
-WritableFolderOpt = typer.Argument(
+OutputPathOpt = typer.Argument(
     file_okay=False,
     writable=True,
     resolve_path=True,
 )
 
-RunsFolderOpt = typer.Argument(
+RunsPathOpt = typer.Argument(
     file_okay=False,
     resolve_path=True,
 )
@@ -46,15 +46,11 @@ def users():
 
 
 @app.command()
-def fetch_all_runs(user_id: int, output: Annotated[Path, WritableFolderOpt]):
+def fetch_all_runs(user_id: int, output: Annotated[Path, OutputPathOpt]):
     # Syncs all GH API runs. We can't just do one massive query and page it due to GH API bugs (runs
     # at the bottom of large queries may not include run-specific data), instead we can only query
     # about 10 days at a time. So do a binary search to find the very first recorded run (with a
     # lower bound of Jan 1 2020), then fetch from there.
-
-    folder = output / "runs"
-    folder.mkdir(parents=True, exist_ok=True)
-
     with (
         get_db() as db,
         Progress(
@@ -78,6 +74,7 @@ def fetch_all_runs(user_id: int, output: Annotated[Path, WritableFolderOpt]):
                     lower = mid
                 mid = TimeRange(lower.start + (upper.start - lower.start) / 2, duration=d)
                 p.update(t1, advance=1, dates=mid.start.date().strftime("%Y-%m-%d"))
+
     print(f"Oldest run is in range {mid.start.date()} to {mid.end.date()}")
     fetch_runs(1, mid.start, output)
 
@@ -86,7 +83,7 @@ def fetch_all_runs(user_id: int, output: Annotated[Path, WritableFolderOpt]):
 def fetch_runs(
     user_id: int,
     from_: datetime,
-    output: Annotated[Path, WritableFolderOpt],
+    output: Annotated[Path, OutputPathOpt],
     to: datetime | None = None,
 ):
     # Only grab at most 10 days of data at a time to avoid this Google Health API v4 bug:
@@ -116,22 +113,23 @@ def fetch_runs(
                 with ThreadPoolExecutor(max_workers=4) as executor:
                     return list(executor.map(_fetch, ranges))
             except httpx.HTTPStatusError as e:
-                print(f"Error: {e.response.json()}")
+                e.add_note(f"Response: {e.response.json()}")
+                raise
 
 
 @app.command()
 def fetch_tcx(
     user_id: int,
-    output: Annotated[Path, WritableFolderOpt],
-    from_runs_path: Annotated[Path | None, RunsFolderOpt] = None,
+    output: Annotated[Path, OutputPathOpt],
+    runs_path: Annotated[Path | None, RunsPathOpt] = None,
     exercise_id: str | None = None,
 ):
     if exercise_id:
         ids = [exercise_id]
-    elif from_runs_path:
-        ids = [f.stem for f in from_runs_path.glob("*.json")]
+    elif runs_path:
+        ids = [f.stem for f in runs_path.glob("*.json")]
     else:
-        raise Exception("Either from-runs-path or exercise-id must be specified")
+        raise Exception("Either runs-path or exercise-id must be specified")
 
     folder = output / "tcx"
     folder.mkdir(parents=True, exist_ok=True)
@@ -152,11 +150,12 @@ def fetch_tcx(
                 with ThreadPoolExecutor(max_workers=4) as executor:
                     return list(executor.map(_fetch, ids))
             except httpx.HTTPStatusError as e:
-                print(f"Error: {e.response.json()}")
+                e.add_note(f"Response: {e.response.json()}")
+                raise
 
 
 @app.command()
-def sync_runtracker(user_id: int, runs_path: Annotated[Path, RunsFolderOpt]):
+def sync_runtracker(user_id: int, runs_path: Annotated[Path, RunsPathOpt]):
     # Sync runs from the RunTracker app to our local DB. This assumes that all GH runs
     # have already been downloaded.
     from rungoal.import_runtracker import RuntrackerRunSession, RuntrackerUser, get_runtracker_db
@@ -170,70 +169,72 @@ def sync_runtracker(user_id: int, runs_path: Annotated[Path, RunsFolderOpt]):
         datetime.fromisoformat(r["exercise"]["interval"]["startTime"]).date(): r for r in gh_runs
     }
 
-    with get_db() as db:
-        user_email = get_user(db, user_id).email
+    with get_db() as db, get_runtracker_db() as rt_db:
+        email = get_user(db, user_id).email
 
-    with get_runtracker_db() as db:
-        user = db.exec(select(RuntrackerUser).where(RuntrackerUser.email == user_email)).first()
+        user = rt_db.exec(select(RuntrackerUser).where(RuntrackerUser.email == email)).first()
         if not user:
-            print(f"No user with email '{user_email}' found in RunTracker database.")
+            print(f"No user with email '{email}' found in RunTracker database.")
             return
 
-        for rt_run in db.exec(
+        gh_runs_by_date = {
+            r.start_time.date(): r for r in db.exec(select(Run).where(Run.user_id == user.id)).all()
+        }
+
+        for rt_run in rt_db.exec(
             select(RuntrackerRunSession).where(RuntrackerRunSession.user_id == user.id)
         ):
-            if gh_run := gh_runs_by_date.get(rt_run.date):
+            if run := gh_runs_by_date.get(rt_run.date):
                 # We found a runtracker run matching a GH run by date. HealthConnect apparently
                 # doesn't sync calories from SamsungHealth, so import them here. But we ADD to
                 # EXISTING calories in case there are multiple runs on this date.
-                if "caloriesKcal" not in gh_run["exrcise"]["metricsSummary"]:
-                    gh_run["exrcise"]["metricsSummary"]["caloriesKcal"] = rt_run.calories
+                # run.
+                if run.calories is None:
+                    run.calories = rt_run.calories
                 else:
-                    gh_run["exrcise"]["metricsSummary"]["caloriesKcal"] += rt_run.calories
+                    run.calories += rt_run.calories
+            else:
+                # TODO: This actually needs to be at noon localtime so like 17 or 18:00 UTC
+                start = datetime.combine(rt_run.date, time(12, 0), UTC)
+                end = start + timedelta(seconds=rt_run.duration_secs)
+                run = Run(start_time=start, end_time=end)  # .... more fields!
 
 
 @app.command()
-def import_runs(user_id: int, runs_path: Annotated[Path, RunsFolderOpt]):
+def import_runs(user_id: int, runs_path: Annotated[Path, RunsPathOpt]):
     # Import the JSON run data into the database
     with get_db() as db:
         user = get_user(db, user_id)
 
         for p in runs_path.glob("*.json"):
             with open(p) as f:
-                content = json.load(f)
-            ex = content["exercise"]
+                root = json.load(f)
+            ex = root["exercise"]
             metrics = ex["metricsSummary"]
-            mobMet = metrics.get("mobilityMetrics")
+            mobMet = metrics.get("mobilityMetrics") or {}
 
             try:
                 db.add(
                     Run(
                         user_id=user.id,
                         data_source=RunDataSource.GOOGLE_HEALTH,
+                        data_source_id=root["dataPointName"].split("/")[-1],
                         start_time=datetime.fromisoformat(ex["interval"]["startTime"]),
                         end_time=datetime.fromisoformat(ex["interval"]["endTime"]),
                         calories=metrics.get("caloriesKcal"),
                         distance_millimeters=metrics["distanceMillimeters"],
                         average_pace_seconds_per_meter=metrics["averagePaceSecondsPerMeter"],
-                        steps=int(metrics["steps"]) if "steps" in metrics else None,
+                        steps=int(tmp) if (tmp := metrics.get("steps")) else None,
                         elevation_gain_millimeters=metrics.get("elevationGainMillimeters"),
                         active_duration=float(ex["activeDuration"][:-1]),
-                        avg_cadence_steps_per_minute=mobMet["avgCadenceStepsPerMinute"]
-                        if mobMet
-                        else None,
-                        avg_stride_length_millimeters=mobMet["avgStrideLengthMillimeters"]
-                        if mobMet
-                        else None,
-                        avg_vertical_oscillation_millimeters=mobMet[
+                        avg_cadence_steps_per_minute=mobMet.get("avgCadenceStepsPerMinute"),
+                        avg_stride_length_millimeters=mobMet.get("avgStrideLengthMillimeters"),
+                        avg_vertical_oscillation_millimeters=mobMet.get(
                             "avgVerticalOscillationMillimeters"
-                        ]
-                        if mobMet
-                        else None,
-                        avg_vertical_ratio=mobMet["avgVerticalRatio"] if mobMet else None,
-                        avg_ground_contact_time_duration=float(
-                            mobMet["avgGroundContactTimeDuration"][:-1]
-                        )
-                        if mobMet
+                        ),
+                        avg_vertical_ratio=mobMet.get("avgVerticalRatio"),
+                        avg_ground_contact_time_duration=float(tmp[:-1])
+                        if (tmp := mobMet.get("avgGroundContactTimeDuration"))
                         else None,
                     )
                 )
@@ -245,7 +246,7 @@ def import_runs(user_id: int, runs_path: Annotated[Path, RunsFolderOpt]):
 
 
 @app.command()
-def import_tcx(user_id: int, tcx_path: Annotated[Path, RunsFolderOpt]):
+def import_tcx(user_id: int, tcx_path: Annotated[Path, RunsPathOpt]):
     import xml.etree.ElementTree as ET
 
     ns = {"tcx": "http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2"}
@@ -266,8 +267,26 @@ def import_tcx(user_id: int, tcx_path: Annotated[Path, RunsFolderOpt]):
 
 
 @app.command()
-def test_db_create():
-    # 2. Configure the Database Connection
-    # We use an in-memory SQLite database for testing, which wipes clean when the script stops.
-    engine = create_engine("sqlite:///:memory:", echo=True)
-    SQLModel.metadata.create_all(engine)
+def init_db_test():
+    from alembic import command
+    from alembic.config import Config
+
+    alembic_config = Config("alembic.ini")
+
+    # Delete the DB and any revisions
+    Path(alembic_config.get_main_option("sqlalchemy.url").split("sqlite:///")[-1]).unlink(
+        missing_ok=True
+    )
+    for p in Path("alembic/versions").glob("*.py"):
+        p.unlink()
+
+    # Generate a new initial revision
+    command.revision(alembic_config, "Initial DB", True)
+
+    # Create & upgrade the databse
+    command.upgrade(alembic_config, "head")
+
+    # Import a test user
+    with get_db() as db, open("tmp/user.json") as f:
+        db.add(User.model_validate(json.load(f)))
+        db.commit()

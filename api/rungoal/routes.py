@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, HTTPException, Response, status
 from jose import JWTError
 
 from rungoal import auth, crud
