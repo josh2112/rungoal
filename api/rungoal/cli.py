@@ -1,8 +1,7 @@
 import contextlib
 import json
-import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
 from typing import Annotated
 
@@ -191,13 +190,40 @@ def sync_runtracker(user_id: int, runs_path: Annotated[Path, RunsPathOpt]):
                 # run.
                 if run.calories is None:
                     run.calories = rt_run.calories
-                else:
+                elif rt_run.calories is not None:
                     run.calories += rt_run.calories
             else:
-                # TODO: This actually needs to be at noon localtime so like 17 or 18:00 UTC
-                start = datetime.combine(rt_run.date, time(12, 0), UTC)
-                end = start + timedelta(seconds=rt_run.duration_secs)
-                run = Run(start_time=start, end_time=end)  # .... more fields!
+                # RunTracker runs only have a date (no time), so set them all to noon
+                # in the local timezone
+                start_utc = datetime.combine(rt_run.date, time(12, 0)).astimezone().astimezone(UTC)
+
+                try:
+                    db.add(
+                        Run(
+                            user_id=user.id,
+                            data_source=RunDataSource.RUNTRACKER,
+                            data_source_id=str(rt_run.id),
+                            start_time=start_utc,
+                            end_time=start_utc + timedelta(seconds=rt_run.duration_secs),
+                            calories=rt_run.calories,
+                            distance_millimeters=rt_run.distance_meters * 1000,
+                            average_pace_seconds_per_meter=rt_run.duration_secs
+                            / rt_run.distance_meters,
+                            active_duration=rt_run.duration_secs,
+                            steps=None,
+                            elevation_gain_millimeters=None,
+                            avg_cadence_steps_per_minute=None,
+                            avg_ground_contact_time_duration=None,
+                            avg_stride_length_millimeters=None,
+                            avg_vertical_oscillation_millimeters=None,
+                            avg_vertical_ratio=None,
+                        )
+                    )
+                except Exception as e:
+                    e.add_note(f"RT run ID={rt_run.id}")
+                    raise
+
+        db.commit()
 
 
 @app.command()
@@ -274,9 +300,8 @@ def init_db_test():
     alembic_config = Config("alembic.ini")
 
     # Delete the DB and any revisions
-    Path(alembic_config.get_main_option("sqlalchemy.url").split("sqlite:///")[-1]).unlink(
-        missing_ok=True
-    )
+    if url := alembic_config.get_main_option("sqlalchemy.url"):
+        Path(url.split("sqlite:///")[-1]).unlink(missing_ok=True)
     for p in Path("alembic/versions").glob("*.py"):
         p.unlink()
 
