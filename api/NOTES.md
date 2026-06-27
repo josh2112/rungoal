@@ -1,6 +1,8 @@
 ## TODO
 
 Importing TCX takes a long time. Most of them are empty. Can we avoid downloading/processing TCX when we know we have no GPS data? Can we rely on Run.exercise.exerciseMetadata.hasGps to know whether there's a TCX or not? Gemini says yes but double-check: Verify there are no TCX files with valid trackpoints for which the corresponding run has hasGPS = False or missing.
+71 tcx with track data
+69 run with hasGPS
 
 Some of the trackpoint data looks sus. For example, not every run has a datapoint in the first second. Check:
 

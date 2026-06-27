@@ -300,9 +300,9 @@ def import_tcx(user_id: int, tcx_path: Annotated[Path, RunsPathOpt]):
                             ).total_seconds(),
                             alt_meters=float(get_subel_text(tp, "AltitudeMeters")),
                             distance_meters=float(get_subel_text(tp, "DistanceMeters")),
-                            heart_rate_bpm=hr,
                             lat_deg=float(get_subel_text(tp, "Position/tcx:LatitudeDegrees")),
                             lon_deg=float(get_subel_text(tp, "Position/tcx:LongitudeDegrees")),
+                            heart_rate_bpm=hr,
                         )
                     )
             except Exception as e:
@@ -334,3 +334,24 @@ def init_db_test():
     with get_db() as db, open("tmp/user.json") as f:
         db.add(User.model_validate(json.load(f)))
         db.commit()
+
+
+import re
+
+
+@app.command()
+def gps_stats():
+    has_gps: dict[str, bool] = {}
+    has_tp: dict[str, bool] = {}
+
+    for p in Path("tmp/tcx").glob("*.tcx"):
+        with open(p) as f:
+            has_tp[p.stem] = re.search("Trackpoint", f.read()) is not None
+    for p in Path("tmp/runs").glob("*.json"):
+        with open(p) as f:
+            has_gps[p.stem] = re.search("hasGps", f.read()) is not None
+
+    runs = has_gps.keys()
+
+    print(f"all: {len(runs)}")
+    # print(f"both: {len()}")
