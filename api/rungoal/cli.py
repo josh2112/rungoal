@@ -13,7 +13,7 @@ from sqlmodel import Session, select
 from rungoal.crud import get_user
 from rungoal.database import get_engine
 from rungoal.google import GoogleHealthClient
-from rungoal.models import Run, RunDataSource, User
+from rungoal.models import Run, RunDataSource, TrackPoint, User
 from rungoal.utils import TimeRange
 
 app = typer.Typer()
@@ -154,21 +154,14 @@ def fetch_tcx(
 
 
 @app.command()
-def sync_runtracker(user_id: int, runs_path: Annotated[Path, RunsPathOpt]):
+def sync_runtracker(
+    user_id: int, runtracker_db_path: Annotated[Path, typer.Argument(dir_okay=False, exists=True)]
+):
     # Sync runs from the RunTracker app to our local DB. This assumes that all GH runs
     # have already been downloaded.
     from rungoal.import_runtracker import RuntrackerRunSession, RuntrackerUser, get_runtracker_db
 
-    gh_runs = []
-    for path in runs_path.glob("*.json"):
-        with open(path) as f:
-            gh_runs.append(json.load(f))
-
-    gh_runs_by_date = {
-        datetime.fromisoformat(r["exercise"]["interval"]["startTime"]).date(): r for r in gh_runs
-    }
-
-    with get_db() as db, get_runtracker_db() as rt_db:
+    with get_db() as db, get_runtracker_db(runtracker_db_path) as rt_db:
         email = get_user(db, user_id).email
 
         user = rt_db.exec(select(RuntrackerUser).where(RuntrackerUser.email == email)).first()
@@ -278,18 +271,44 @@ def import_tcx(user_id: int, tcx_path: Annotated[Path, RunsPathOpt]):
     ns = {"tcx": "http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2"}
 
     def get_subel_text(el: ET.Element, name: str):
-        if (subel := el.find(f"./tcx:{name}", ns)) is not None:
-            return subel.text
-        return None
+        subel = el.find(f"./tcx:{name}", ns)
+        assert subel is not None and subel.text
+        return subel.text
 
-    for p in tcx_path.glob("*.tcx"):
-        root = ET.parse(p).getroot()
-        for tp in root.findall(".//tcx:Trackpoint", ns):
-            if time := get_subel_text(tp, "Time"):
-                print(datetime.fromisoformat(time))
-            if alt := get_subel_text(tp, "AltitudeMeters"):
-                print(float(alt))
-            # TODO: Continue
+    with get_db() as db:
+        user = get_user(db, user_id)
+
+        for p in tcx_path.glob("*.tcx"):
+            try:
+                run = db.exec(
+                    select(Run)
+                    .where(Run.user_id == user.id)
+                    .where(Run.data_source == RunDataSource.GOOGLE_HEALTH)
+                    .where(Run.data_source_id == p.stem)
+                ).one()
+
+                root = ET.parse(p).getroot()
+                for tp in root.findall(".//tcx:Trackpoint", ns):
+                    el_hr = tp.find("./tcx:HeartRateBpm/tcx:Value", ns)
+
+                    hr = int(el_hr.text) if el_hr is not None and el_hr.text is not None else None
+                    db.add(
+                        TrackPoint(
+                            run_id=run.id,
+                            elapsed_secs=(
+                                datetime.fromisoformat(get_subel_text(tp, "Time")) - run.start_time
+                            ).total_seconds(),
+                            alt_meters=float(get_subel_text(tp, "AltitudeMeters")),
+                            distance_meters=float(get_subel_text(tp, "DistanceMeters")),
+                            heart_rate_bpm=hr,
+                            lat_deg=float(get_subel_text(tp, "Position/tcx:LatitudeDegrees")),
+                            lon_deg=float(get_subel_text(tp, "Position/tcx:LongitudeDegrees")),
+                        )
+                    )
+            except Exception as e:
+                e.add_note(f"dataPointID={p.stem}")
+                raise
+        db.commit()
 
 
 @app.command()

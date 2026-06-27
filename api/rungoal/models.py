@@ -1,14 +1,30 @@
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from enum import StrEnum
 
 from pydantic import BaseModel, EmailStr, model_validator
-from sqlalchemy import Column, Unicode
+from sqlalchemy import Column, DateTime, Unicode, types
 from sqlalchemy_utils import EncryptedType
 from sqlalchemy_utils.types.encrypted.encrypted_type import AesEngine
 from sqlmodel import AutoString, Field, Relationship, SQLModel
 from sqlmodel import Enum as SQLEnum
 
 from rungoal.settings import settings
+
+
+class UTCDateTime(types.TypeDecorator):
+    """
+    A custom SQLAlchemy type that ensures datetime objects
+    are timezone-aware (UTC) upon retrieval.
+    """
+
+    impl = DateTime
+    cache_ok = True
+
+    def process_result_value(self, value, dialect):
+        if value is not None and value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value
+
 
 # ========= Auth ========
 
@@ -61,8 +77,8 @@ class Run(SQLModel, table=True):
     data_source: RunDataSource = Field(sa_column=Column(SQLEnum(RunDataSource), nullable=False))
     data_source_id: str
 
-    start_time: datetime
-    end_time: datetime
+    start_time: datetime = Field(sa_column=Column(UTCDateTime(timezone=True)))
+    end_time: datetime = Field(sa_column=Column(UTCDateTime(timezone=True)))
     calories: int | None
     distance_millimeters: int
     average_pace_seconds_per_meter: float
@@ -86,12 +102,12 @@ class TrackPoint(SQLModel, table=True):
     run_id: int | None = Field(default=None, foreign_key="run.id", ondelete="CASCADE")
     run: Run | None = Relationship(back_populates="track_points")
 
-    elapsed_secs: int
+    elapsed_secs: float
     lat_deg: float
     lon_deg: float
     alt_meters: float
     distance_meters: float
-    heart_rate_bmp: int
+    heart_rate_bpm: int | None
 
 
 class GoalCreate(SQLModel):

@@ -1,18 +1,18 @@
 import contextlib
 from datetime import date
+from pathlib import Path
 
+from sqlalchemy.orm import registry
 from sqlmodel import Field, Session, SQLModel, create_engine
 
-from rungoal.settings import settings
-
-_URL = (
-    "sqlite:///tmp/runtracker.db"
-    if settings.DEV
-    else "sqlite:////var/www/protected/runtracker/api/runtracker.db"
-)
+_runtracker_registry = registry()
 
 
-class RuntrackerRunSession(SQLModel, table=True):
+class RuntrackerSQLModel(SQLModel, registry=_runtracker_registry):
+    pass
+
+
+class RuntrackerRunSession(RuntrackerSQLModel, table=True):
     __tablename__: str = "runsession"
 
     id: int = Field(primary_key=True)
@@ -23,7 +23,7 @@ class RuntrackerRunSession(SQLModel, table=True):
     user_id: int
 
 
-class RuntrackerGoal(SQLModel, table=True):
+class RuntrackerGoal(RuntrackerSQLModel, table=True):
     __tablename__: str = "goal"
     id: int = Field(primary_key=True)
     user_id: int
@@ -32,16 +32,18 @@ class RuntrackerGoal(SQLModel, table=True):
     distance_meters: int
 
 
-class RuntrackerUser(SQLModel, table=True):
+class RuntrackerUser(RuntrackerSQLModel, table=True):
     __tablename__: str = "user"
 
-    id: int
+    id: int = Field(primary_key=True)
     email: str
-    goals: list[RuntrackerGoal]
 
 
 @contextlib.contextmanager
-def get_runtracker_db():
-    engine = create_engine(_URL, connect_args={"check_same_thread": False})
+def get_runtracker_db(path: Path):
+    engine = create_engine(
+        f"sqlite:///{path.as_posix()}",
+        connect_args={"check_same_thread": False},
+    )
     with Session(engine) as session:
         yield session

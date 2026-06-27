@@ -1,8 +1,8 @@
 """Initial DB
 
-Revision ID: d9b05b27767b
+Revision ID: d4e6cd87b3cd
 Revises: 
-Create Date: 2026-06-26 12:57:48.817880
+Create Date: 2026-06-27 15:16:51.420894
 
 """
 from typing import Sequence, Union
@@ -12,10 +12,13 @@ import sqlalchemy as sa
 import sqlmodel
 import sqlalchemy_utils
 
+# For custom TypeAnnotations
+import rungoal.models
+
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'd9b05b27767b'
+revision: str = 'd4e6cd87b3cd'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -48,8 +51,8 @@ def upgrade() -> None:
     sa.Column('user_id', sa.Integer(), nullable=True),
     sa.Column('data_source', sa.Enum('GOOGLE_HEALTH', 'RUNTRACKER', name='rundatasource'), nullable=False),
     sa.Column('data_source_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('start_time', sa.DateTime(), nullable=False),
-    sa.Column('end_time', sa.DateTime(), nullable=False),
+    sa.Column('start_time', rungoal.models.UTCDateTime(timezone=True), nullable=True),
+    sa.Column('end_time', rungoal.models.UTCDateTime(timezone=True), nullable=True),
     sa.Column('calories', sa.Integer(), nullable=True),
     sa.Column('distance_millimeters', sa.Integer(), nullable=False),
     sa.Column('average_pace_seconds_per_meter', sa.Float(), nullable=False),
@@ -67,12 +70,12 @@ def upgrade() -> None:
     op.create_table('trackpoint',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('run_id', sa.Integer(), nullable=True),
-    sa.Column('elapsed_secs', sa.Integer(), nullable=False),
+    sa.Column('elapsed_secs', sa.Float(), nullable=False),
     sa.Column('lat_deg', sa.Float(), nullable=False),
     sa.Column('lon_deg', sa.Float(), nullable=False),
     sa.Column('alt_meters', sa.Float(), nullable=False),
     sa.Column('distance_meters', sa.Float(), nullable=False),
-    sa.Column('heart_rate_bmp', sa.Integer(), nullable=False),
+    sa.Column('heart_rate_bpm', sa.Integer(), nullable=True),
     sa.ForeignKeyConstraint(['run_id'], ['run.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )

@@ -1,9 +1,10 @@
 from logging.config import fileConfig
 
 from alembic import context
-from rungoal.models import *  # noqa: F403  # Import all the models
 from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel  # Import SQLModel to use its metadata field
+
+from rungoal.models import *  # noqa: F403  # Import all the models
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

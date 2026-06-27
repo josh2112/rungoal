@@ -12,6 +12,9 @@ import sqlalchemy as sa
 import sqlmodel
 import sqlalchemy_utils
 
+# For custom TypeAnnotations
+import rungoal.models
+
 ${imports if imports else ""}
 
 # revision identifiers, used by Alembic.
