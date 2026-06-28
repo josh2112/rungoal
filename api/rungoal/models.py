@@ -20,7 +20,7 @@ class UTCDateTime(types.TypeDecorator):
     impl = DateTime
     cache_ok = True
 
-    def process_result_value(self, value, dialect):
+    def process_result_value(self, value, _):
         if value is not None and value.tzinfo is None:
             return value.replace(tzinfo=UTC)
         return value
