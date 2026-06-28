@@ -1,8 +1,8 @@
 """Initial DB
 
-Revision ID: d4e6cd87b3cd
+Revision ID: 7157b213b820
 Revises: 
-Create Date: 2026-06-27 15:16:51.420894
+Create Date: 2026-06-28 15:30:25.052563
 
 """
 from typing import Sequence, Union
@@ -18,7 +18,7 @@ import rungoal.models
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'd4e6cd87b3cd'
+revision: str = '7157b213b820'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -48,6 +48,7 @@ def upgrade() -> None:
     )
     op.create_table('run',
     sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('update_time', rungoal.models.UTCDateTime(timezone=True), nullable=True),
     sa.Column('user_id', sa.Integer(), nullable=True),
     sa.Column('data_source', sa.Enum('GOOGLE_HEALTH', 'RUNTRACKER', name='rundatasource'), nullable=False),
     sa.Column('data_source_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
@@ -65,7 +66,8 @@ def upgrade() -> None:
     sa.Column('avg_vertical_ratio', sa.Float(), nullable=True),
     sa.Column('avg_ground_contact_time_duration', sa.Float(), nullable=True),
     sa.ForeignKeyConstraint(['user_id'], ['user.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('data_source', 'data_source_id', name='uq_data_source_id')
     )
     op.create_table('trackpoint',
     sa.Column('id', sa.Integer(), nullable=False),

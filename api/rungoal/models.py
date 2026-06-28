@@ -2,7 +2,7 @@ from datetime import UTC, date, datetime
 from enum import StrEnum
 
 from pydantic import BaseModel, EmailStr, model_validator
-from sqlalchemy import Column, DateTime, Unicode, types
+from sqlalchemy import Column, DateTime, Unicode, UniqueConstraint, types
 from sqlalchemy_utils import EncryptedType
 from sqlalchemy_utils.types.encrypted.encrypted_type import AesEngine
 from sqlmodel import AutoString, Field, Relationship, SQLModel
@@ -71,6 +71,10 @@ class Run(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
 
+    # Used to sync runs... if we see an existing data_source_id with a later
+    # update time, replace it
+    update_time: datetime = Field(sa_column=Column(UTCDateTime(timezone=True)))
+
     user_id: int | None = Field(default=None, foreign_key="user.id", ondelete="CASCADE")
     user: User | None = Relationship(back_populates="runs")
 
@@ -92,6 +96,8 @@ class Run(SQLModel, table=True):
     avg_ground_contact_time_duration: float | None
 
     track_points: list["TrackPoint"] = Relationship(back_populates="run", cascade_delete=True)
+
+    __table_args__ = (UniqueConstraint("data_source", "data_source_id", name="uq_data_source_id"),)
 
 
 class TrackPoint(SQLModel, table=True):

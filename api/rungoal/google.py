@@ -1,6 +1,7 @@
 import json
 import threading
 from collections.abc import Generator
+from datetime import datetime
 from functools import cache
 
 import google.auth.transport.requests
@@ -8,7 +9,7 @@ import httpx
 from google.oauth2.credentials import Credentials
 from sqlmodel import Session
 
-from rungoal.models import User
+from rungoal.models import Run, RunDataSource, User
 from rungoal.utils import TimeRange
 
 
@@ -57,12 +58,13 @@ class GoogleHealthClient(httpx.Client):
     GOOGLE_DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
     def __init__(self, user: User, db: Session, *args, **kwargs):
+        self.user = user
         kwargs.setdefault("base_url", "https://health.googleapis.com/v4/users/me/dataTypes")
         kwargs["auth"] = _GoogleApiAuth(user, db)
         kwargs.setdefault("headers", {"Accept": "application/json"})
         super().__init__(*args, **kwargs)
 
-    def fetch_runs(self, range_: TimeRange):
+    def fetch_runs(self, range_: TimeRange) -> list[Run]:
         field = "exercise.interval.civil_start_time"
         a = f'{field} >= "{range_.start.strftime(self.GOOGLE_DATETIME_FORMAT)}"'
         b = f'{field} < "{range_.end.strftime(self.GOOGLE_DATETIME_FORMAT)}"'
@@ -73,10 +75,13 @@ class GoogleHealthClient(httpx.Client):
         response.raise_for_status()
 
         content = response.json()
-        return (
-            [dp for dp in content["dataPoints"] if dp["exercise"]["exerciseType"] == "RUNNING"]
-            if "dataPoints" in content
-            else []
+        return list(
+            map(
+                self._run_from_data_point,
+                [dp for dp in content["dataPoints"] if dp["exercise"]["exerciseType"] == "RUNNING"]
+                if "dataPoints" in content
+                else [],
+            )
         )
 
     def fetch_tcx(self, exercise_id: str) -> bytes:
@@ -85,3 +90,30 @@ class GoogleHealthClient(httpx.Client):
         )
         response.raise_for_status()
         return response.content
+
+    def _run_from_data_point(self, dp: dict) -> Run:
+        ex = dp["exercise"]
+        metrics = ex["metricsSummary"]
+        mobMet = metrics.get("mobilityMetrics") or {}
+
+        return Run(
+            user_id=self.user.id,
+            data_source=RunDataSource.GOOGLE_HEALTH,
+            data_source_id=dp["dataPointName"].split("/")[-1],
+            start_time=datetime.fromisoformat(ex["interval"]["startTime"]),
+            end_time=datetime.fromisoformat(ex["interval"]["endTime"]),
+            update_time=datetime.fromisoformat(ex["updateTime"]),
+            calories=metrics.get("caloriesKcal"),
+            distance_millimeters=metrics["distanceMillimeters"],
+            average_pace_seconds_per_meter=metrics["averagePaceSecondsPerMeter"],
+            steps=int(tmp) if (tmp := metrics.get("steps")) else None,
+            elevation_gain_millimeters=metrics.get("elevationGainMillimeters"),
+            active_duration=float(ex["activeDuration"][:-1]),
+            avg_cadence_steps_per_minute=mobMet.get("avgCadenceStepsPerMinute"),
+            avg_stride_length_millimeters=mobMet.get("avgStrideLengthMillimeters"),
+            avg_vertical_oscillation_millimeters=mobMet.get("avgVerticalOscillationMillimeters"),
+            avg_vertical_ratio=mobMet.get("avgVerticalRatio"),
+            avg_ground_contact_time_duration=float(tmp[:-1])
+            if (tmp := mobMet.get("avgGroundContactTimeDuration"))
+            else None,
+        )

@@ -8,12 +8,13 @@ from typing import Annotated
 import httpx
 import typer
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from sqlalchemy.dialects.sqlite import insert
 from sqlmodel import Session, select
 
 from rungoal.crud import get_user
 from rungoal.database import get_engine
 from rungoal.google import GoogleHealthClient
-from rungoal.models import Run, RunDataSource, TrackPoint, User
+from rungoal.models import Run, RunDataSource, User
 from rungoal.utils import TimeRange
 
 app = typer.Typer()
@@ -25,66 +26,57 @@ def get_db():
         yield session
 
 
-OutputPathOpt = typer.Argument(
-    file_okay=False,
-    writable=True,
-    resolve_path=True,
-)
-
-RunsPathOpt = typer.Argument(
-    file_okay=False,
-    resolve_path=True,
-)
-
-
-@app.command()
+@app.command(help="Prints the user list.")
 def users():
     with get_db() as db:
         for user in db.exec(select(User)).all():
             print(f"{user.id}, {user.name}, {user.email}")
 
 
-@app.command()
-def fetch_all_runs(user_id: int, output: Annotated[Path, OutputPathOpt]):
+@app.command(help="Syncs all known runs from Google Health to the database.")
+def sync_all_runs(user_id: int):
     # Syncs all GH API runs. We can't just do one massive query and page it due to GH API bugs (runs
     # at the bottom of large queries may not include run-specific data), instead we can only query
     # about 10 days at a time. So do a binary search to find the very first recorded run (with a
     # lower bound of Jan 1 2020), then fetch from there.
-    with (
-        get_db() as db,
-        Progress(
-            TextColumn("[progress.description]{task.description}"),
-            SpinnerColumn(),
-            TextColumn("{task.fields[dates]}"),
-        ) as p,
-    ):
-        user = get_user(db, user_id)
-        with GoogleHealthClient(user, db) as client:
-            # First do a binary search.
-            t1 = p.add_task("Finding oldest runs...", dates="")
-            d = timedelta(days=10)
-            lower = TimeRange(datetime(year=2020, month=1, day=1, tzinfo=UTC), duration=d)
-            upper = TimeRange(datetime.now(UTC) - d, duration=d)
-            mid = TimeRange(lower.start + (upper.start - lower.start) / 2, duration=d)
-            while not lower.overlaps(upper):
-                if client.fetch_runs(mid):
-                    upper = mid
-                else:
-                    lower = mid
+    with Progress(
+        TextColumn("[progress.description]{task.description}"),
+        SpinnerColumn(),
+        TextColumn("{task.fields[dates]}"),
+    ) as progress:
+        with get_db() as db:
+            user = get_user(db, user_id)
+            with GoogleHealthClient(user, db) as client:
+                # First do a binary search.
+                task = progress.add_task("Finding oldest runs...", dates="")
+                d = timedelta(days=10)
+                lower = TimeRange(datetime(year=2020, month=1, day=1, tzinfo=UTC), duration=d)
+                upper = TimeRange(datetime.now(UTC) - d, duration=d)
                 mid = TimeRange(lower.start + (upper.start - lower.start) / 2, duration=d)
-                p.update(t1, advance=1, dates=mid.start.date().strftime("%Y-%m-%d"))
+                while not lower.overlaps(upper):
+                    if client.fetch_runs(mid):
+                        upper = mid
+                    else:
+                        lower = mid
+                    mid = TimeRange(lower.start + (upper.start - lower.start) / 2, duration=d)
+                    progress.update(task, advance=1, dates=mid.start.date().strftime("%Y-%m-%d"))
 
-    print(f"Oldest run is in range {mid.start.date()} to {mid.end.date()}")
-    fetch_runs(1, mid.start, output)
+        progress.columns = progress.get_default_columns()
+        _sync_runs(1, lower.start, progress=progress)
 
 
-@app.command()
-def fetch_runs(
-    user_id: int,
-    from_: datetime,
-    output: Annotated[Path, OutputPathOpt],
-    to: datetime | None = None,
-):
+@app.command(help="Syncs runs from Google Health to the database for the given time range.")
+def sync_runs(user_id: int, from_: datetime, to: datetime | None = None):
+    with Progress() as p:
+        _sync_runs(user_id, from_, to, p)
+
+
+# Syncs runs from Google Health to the database for the given time range. Existing runs
+# will only be overwritten in the event of a newer update time.
+# Returns: List of new or updated runs
+def _sync_runs(
+    user_id: int, from_: datetime, to: datetime | None = None, progress: Progress | None = None
+) -> list[Run]:
     # Only grab at most 10 days of data at a time to avoid this Google Health API v4 bug:
     # https://issuetracker.google.com/issues/510170708
     # If a run is too far down in the list of returned results, it may have run-specific data
@@ -92,65 +84,45 @@ def fetch_runs(
     span = TimeRange(from_.replace(tzinfo=UTC), to.replace(tzinfo=UTC) if to else datetime.now(UTC))
     ranges = list(span.chunk(timedelta(days=10)))
 
-    folder = output / "runs"
-    folder.mkdir(parents=True, exist_ok=True)
+    task = progress.add_task("Downloading runs...", total=len(ranges)) if progress else None
 
-    with get_db() as db, Progress() as p:
+    with get_db() as db:
         user = get_user(db, user_id)
+
         with GoogleHealthClient(user, db) as client:
 
             def _fetch(range_: TimeRange):
-                dataPoints = client.fetch_runs(range_)
-                for ex in dataPoints:
-                    path = (folder / ex["dataPointName"].split("/")[-1]).with_suffix(".json")
-                    with open(path, "w") as f:
-                        json.dump(ex, f, indent=4)
-                p.update(t1)
+                runs = client.fetch_runs(range_)
+                if progress and task:
+                    progress.advance(task)
+                return runs
 
-            t1 = p.add_task("Downloading runs...", total=len(ranges))
             try:
                 with ThreadPoolExecutor(max_workers=4) as executor:
-                    return list(executor.map(_fetch, ranges))
+                    runs = [run for lst in executor.map(_fetch, ranges) for run in lst]
             except httpx.HTTPStatusError as e:
                 e.add_note(f"Response: {e.response.json()}")
                 raise
 
+        sql = insert(Run).values(runs)
 
-@app.command()
-def fetch_tcx(
-    user_id: int,
-    output: Annotated[Path, OutputPathOpt],
-    runs_path: Annotated[Path | None, RunsPathOpt] = None,
-    exercise_id: str | None = None,
-):
-    if exercise_id:
-        ids = [exercise_id]
-    elif runs_path:
-        ids = [f.stem for f in runs_path.glob("*.json")]
-    else:
-        raise Exception("Either runs-path or exercise-id must be specified")
+        # Insert all runs. On a conflict (matching data source and data source ID),
+        # check the update_time. If greater than existing, update all fields
+        # except ID and the data source fields.
+        runs = db.scalars(
+            sql.on_conflict_do_update(
+                index_elements=["data_source", "data_source_id"],
+                set_={
+                    n: getattr(sql.excluded, n)
+                    for n in Run.model_fields
+                    if n not in ["id", "data_source", "data_source_id"]
+                },
+                where=sql.excluded.update_time > Run.update_time,
+            ).returning(Run)
+        ).all()
+        db.commit()
 
-    folder = output / "tcx"
-    folder.mkdir(parents=True, exist_ok=True)
-
-    with get_db() as db, Progress() as p:
-        user = get_user(db, user_id)
-        with GoogleHealthClient(user, db) as client:
-
-            def _fetch(id_: str):
-                tcx = client.fetch_tcx(id_)
-                path = (folder / id_).with_suffix(".tcx")
-                with open(path, "wb") as f:
-                    f.write(tcx)
-                p.update(t1)
-
-            t1 = p.add_task("Downloading TCX files...", total=len(ids))
-            try:
-                with ThreadPoolExecutor(max_workers=4) as executor:
-                    return list(executor.map(_fetch, ids))
-            except httpx.HTTPStatusError as e:
-                e.add_note(f"Response: {e.response.json()}")
-                raise
+    return list(runs)
 
 
 @app.command()
@@ -191,13 +163,15 @@ def sync_runtracker(
                 start_utc = datetime.combine(rt_run.date, time(12, 0)).astimezone().astimezone(UTC)
 
                 try:
+                    end_time = start_utc + timedelta(seconds=rt_run.duration_secs)
                     db.add(
                         Run(
                             user_id=user.id,
                             data_source=RunDataSource.RUNTRACKER,
                             data_source_id=str(rt_run.id),
                             start_time=start_utc,
-                            end_time=start_utc + timedelta(seconds=rt_run.duration_secs),
+                            end_time=end_time,
+                            update_time=end_time,
                             calories=rt_run.calories,
                             distance_millimeters=rt_run.distance_meters * 1000,
                             average_pace_seconds_per_meter=rt_run.duration_secs
@@ -219,49 +193,32 @@ def sync_runtracker(
         db.commit()
 
 
-@app.command()
-def import_runs(user_id: int, runs_path: Annotated[Path, RunsPathOpt]):
-    # Import the JSON run data into the database
-    with get_db() as db:
+"""@app.command()
+def fetch_tcx(user_id: int):
+    with get_db() as db, Progress() as p:
         user = get_user(db, user_id)
+        runs = db.exec(
+            select(Run)
+            .where(Run.user_id == user.id)
+            .where(Run.data_source == RunDataSource.GOOGLE_HEALTH)
+        ).all()
 
-        for p in runs_path.glob("*.json"):
-            with open(p) as f:
-                root = json.load(f)
-            ex = root["exercise"]
-            metrics = ex["metricsSummary"]
-            mobMet = metrics.get("mobilityMetrics") or {}
+        with GoogleHealthClient(user, db) as client:
 
+            def _fetch(id_: str):
+                tcx = client.fetch_tcx(id_)
+                path = (folder / id_).with_suffix(".tcx")
+                with open(path, "wb") as f:
+                    f.write(tcx)
+                p.advance(t1)
+
+            t1 = p.add_task("Downloading TCX files...", total=len(runs))
             try:
-                db.add(
-                    Run(
-                        user_id=user.id,
-                        data_source=RunDataSource.GOOGLE_HEALTH,
-                        data_source_id=root["dataPointName"].split("/")[-1],
-                        start_time=datetime.fromisoformat(ex["interval"]["startTime"]),
-                        end_time=datetime.fromisoformat(ex["interval"]["endTime"]),
-                        calories=metrics.get("caloriesKcal"),
-                        distance_millimeters=metrics["distanceMillimeters"],
-                        average_pace_seconds_per_meter=metrics["averagePaceSecondsPerMeter"],
-                        steps=int(tmp) if (tmp := metrics.get("steps")) else None,
-                        elevation_gain_millimeters=metrics.get("elevationGainMillimeters"),
-                        active_duration=float(ex["activeDuration"][:-1]),
-                        avg_cadence_steps_per_minute=mobMet.get("avgCadenceStepsPerMinute"),
-                        avg_stride_length_millimeters=mobMet.get("avgStrideLengthMillimeters"),
-                        avg_vertical_oscillation_millimeters=mobMet.get(
-                            "avgVerticalOscillationMillimeters"
-                        ),
-                        avg_vertical_ratio=mobMet.get("avgVerticalRatio"),
-                        avg_ground_contact_time_duration=float(tmp[:-1])
-                        if (tmp := mobMet.get("avgGroundContactTimeDuration"))
-                        else None,
-                    )
-                )
-            except Exception as e:
-                e.add_note(f"dataPoint={p.stem}")
+                with ThreadPoolExecutor(max_workers=4) as executor:
+                    return list(executor.map(_fetch, runs))
+            except httpx.HTTPStatusError as e:
+                e.add_note(f"Response: {e.response.json()}")
                 raise
-
-        db.commit()
 
 
 @app.command()
@@ -308,24 +265,26 @@ def import_tcx(user_id: int, tcx_path: Annotated[Path, RunsPathOpt]):
             except Exception as e:
                 e.add_note(f"dataPointID={p.stem}")
                 raise
-        db.commit()
+        db.commit() """
 
 
-@app.command()
-def init_db_test():
+@app.command(help="Deletes and recreates the database, optionally recreating revision data.")
+def init_db_test(regen: bool = False):
     from alembic import command
     from alembic.config import Config
 
     alembic_config = Config("alembic.ini")
 
-    # Delete the DB and any revisions
+    # Delete the DB
     if url := alembic_config.get_main_option("sqlalchemy.url"):
         Path(url.split("sqlite:///")[-1]).unlink(missing_ok=True)
-    for p in Path("alembic/versions").glob("*.py"):
-        p.unlink()
 
-    # Generate a new initial revision
-    command.revision(alembic_config, "Initial DB", True)
+    if regen:
+        # Wipe all revisions and generate a new initial revision
+        for p in Path("alembic/versions").glob("*.py"):
+            p.unlink()
+
+        command.revision(alembic_config, "Initial DB", True)
 
     # Create & upgrade the databse
     command.upgrade(alembic_config, "head")
