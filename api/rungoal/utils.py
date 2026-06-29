@@ -6,10 +6,13 @@ class TimeRange:
     def __init__(
         self, start: datetime, end: datetime | None = None, duration: timedelta | None = None
     ):
-        if not end and not duration:
-            raise Exception("Must include either [end] or [duration]")
         self.start = start
-        self.end: datetime = start + duration if duration else end
+        if duration:
+            self.end = start + duration
+        elif end:
+            self.end = end
+        else:
+            raise Exception("Must include either [end] or [duration]")
 
     def overlaps(self, other: "TimeRange") -> bool:
         return self.end > other.start if self.start < other.start else self.start < other.end

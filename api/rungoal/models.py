@@ -20,7 +20,7 @@ class UTCDateTime(types.TypeDecorator):
     impl = DateTime
     cache_ok = True
 
-    def process_result_value(self, value, _):
+    def process_result_value(self, value, dialect):  # noqa: ARG002
         if value is not None and value.tzinfo is None:
             return value.replace(tzinfo=UTC)
         return value
@@ -71,8 +71,6 @@ run_unique_constriant_columns = ("user_id", "data_source", "data_source_id")
 
 
 class Run(SQLModel, table=True):
-    __tablename__: str = "run"
-
     id: int | None = Field(default=None, primary_key=True)
 
     # Used to sync runs... if we see an existing data_source_id with a later
@@ -105,8 +103,6 @@ class Run(SQLModel, table=True):
 
 
 class TrackPoint(SQLModel, table=True):
-    __tablename__: str = "trackpoint"
-
     id: int | None = Field(default=None, primary_key=True)
 
     run_id: int | None = Field(default=None, foreign_key="run.id", ondelete="CASCADE")

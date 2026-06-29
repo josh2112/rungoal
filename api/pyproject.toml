@@ -24,6 +24,9 @@ rungoal-cli = "rungoal.cli:app"
 [tool.fastapi]
 entrypoint = "rungoal.main:app"
 
+[tool.pyright]
+include = ["."]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

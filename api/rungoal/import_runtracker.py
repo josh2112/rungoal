@@ -13,7 +13,7 @@ class RuntrackerSQLModel(SQLModel, registry=_runtracker_registry):
 
 
 class RuntrackerRunSession(RuntrackerSQLModel, table=True):
-    __tablename__: str = "runsession"
+    __tablename__: str = "runsession"  # type: ignore
 
     id: int = Field(primary_key=True)
     date: date
@@ -24,7 +24,8 @@ class RuntrackerRunSession(RuntrackerSQLModel, table=True):
 
 
 class RuntrackerGoal(RuntrackerSQLModel, table=True):
-    __tablename__: str = "goal"
+    __tablename__: str = "goal"  # type: ignore
+
     id: int = Field(primary_key=True)
     user_id: int
     start_date: date
@@ -33,7 +34,7 @@ class RuntrackerGoal(RuntrackerSQLModel, table=True):
 
 
 class RuntrackerUser(RuntrackerSQLModel, table=True):
-    __tablename__: str = "user"
+    __tablename__: str = "user"  # type: ignore
 
     id: int = Field(primary_key=True)
     email: str
