@@ -25,7 +25,7 @@ rungoal-cli = "rungoal.cli:app"
 entrypoint = "rungoal.main:app"
 
 [tool.pyright]
-include = ["."]
+include = ["rungoal"]
 
 [build-system]
 requires = ["hatchling"]

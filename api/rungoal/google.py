@@ -10,7 +10,7 @@ import httpx
 from google.oauth2.credentials import Credentials
 from sqlmodel import Session
 
-from rungoal.models import Run, RunDataSource, TrackPoint, User
+from rungoal.models import Run, RunDataSource, RunTcxFetchContext, TrackPoint, User
 from rungoal.utils import TimeRange
 
 
@@ -60,10 +60,11 @@ class GoogleHealthClient(httpx.Client):
     GOOGLE_DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
     def __init__(self, user: User, db: Session, *args, **kwargs):
-        self.user = user
+        self.db, self.user = db, user
         kwargs.setdefault("base_url", "https://health.googleapis.com/v4/users/me/dataTypes")
         kwargs["auth"] = _GoogleApiAuth(user, db)
         kwargs.setdefault("headers", {"Accept": "application/json"})
+        kwargs["timeout"] = httpx.Timeout(5.0, read=30.0)
         super().__init__(*args, **kwargs)
 
     def fetch_runs(self, range_: TimeRange) -> list[Run]:
@@ -86,7 +87,7 @@ class GoogleHealthClient(httpx.Client):
             )
         )
 
-    def fetch_tcx(self, run: Run) -> list[TrackPoint]:
+    def fetch_tcx(self, run: RunTcxFetchContext) -> list[TrackPoint]:
         response = self.get(
             f"/exercise/dataPoints/{run.data_source_id}:exportExerciseTcx?alt=media",
         )

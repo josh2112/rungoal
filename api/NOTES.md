@@ -1,8 +1,5 @@
 ## TODO
 
-- Download TCX files and return Trackpoint() instance lists
-- Save to DB
-
 ## Fitbit
 
 Also include for each run:

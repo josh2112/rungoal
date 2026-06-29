@@ -1,7 +1,7 @@
 from datetime import UTC, date, datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, EmailStr, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, model_validator
 from sqlalchemy import Column, DateTime, Unicode, UniqueConstraint, types
 from sqlalchemy_utils import EncryptedType
 from sqlalchemy_utils.types.encrypted.encrypted_type import AesEngine
@@ -100,6 +100,14 @@ class Run(SQLModel, table=True):
     track_points: list["TrackPoint"] = Relationship(back_populates="run", cascade_delete=True)
 
     __table_args__ = (UniqueConstraint(*run_unique_constriant_columns, name="run_unique"),)
+
+
+class RunTcxFetchContext(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    data_source_id: str
+    start_time: datetime
 
 
 class TrackPoint(SQLModel, table=True):
