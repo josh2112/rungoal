@@ -1,5 +1,6 @@
 import json
 import threading
+import xml.etree.ElementTree as ET
 from collections.abc import Generator
 from datetime import datetime
 from functools import cache
@@ -9,7 +10,7 @@ import httpx
 from google.oauth2.credentials import Credentials
 from sqlmodel import Session
 
-from rungoal.models import Run, RunDataSource, User
+from rungoal.models import Run, RunDataSource, TrackPoint, User
 from rungoal.utils import TimeRange
 
 
@@ -38,6 +39,7 @@ class _GoogleApiAuth(httpx.Auth):
         # expired token will refresh it; all other requests will wait on the lock.
         self.creds.refresh(google.auth.transport.requests.Request())
         self.user.google_api_access_token = self.creds.token
+        self.db.add(self.user)
         self.db.commit()
 
     def auth_flow(self, request: httpx.Request) -> Generator[httpx.Request, httpx.Response, None]:
@@ -84,12 +86,41 @@ class GoogleHealthClient(httpx.Client):
             )
         )
 
-    def fetch_tcx(self, exercise_id: str) -> bytes:
+    def fetch_tcx(self, run: Run) -> list[TrackPoint]:
         response = self.get(
-            f"/exercise/dataPoints/{exercise_id}:exportExerciseTcx?alt=media",
+            f"/exercise/dataPoints/{run.data_source_id}:exportExerciseTcx?alt=media",
         )
         response.raise_for_status()
-        return response.content
+
+        ns = {"tcx": "http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2"}
+        root = ET.fromstring(response.content)
+        trackpoints = []
+
+        def get_subel_text(el: ET.Element, name: str):
+            subel = el.find(f"./tcx:{name}", ns)
+            assert subel is not None and subel.text
+            return subel.text
+
+        for tp in root.findall(".//tcx:Trackpoint", ns):
+            el_hr = tp.find("./tcx:HeartRateBpm/tcx:Value", ns)
+
+            hr = int(el_hr.text) if el_hr is not None and el_hr.text is not None else None
+
+            trackpoints.append(
+                TrackPoint(
+                    run_id=run.id,
+                    elapsed_secs=(
+                        datetime.fromisoformat(get_subel_text(tp, "Time")) - run.start_time
+                    ).total_seconds(),
+                    alt_meters=float(get_subel_text(tp, "AltitudeMeters")),
+                    distance_meters=float(get_subel_text(tp, "DistanceMeters")),
+                    lat_deg=float(get_subel_text(tp, "Position/tcx:LatitudeDegrees")),
+                    lon_deg=float(get_subel_text(tp, "Position/tcx:LongitudeDegrees")),
+                    heart_rate_bpm=hr,
+                )
+            )
+
+        return trackpoints
 
     def _run_from_data_point(self, dp: dict) -> Run:
         ex = dp["exercise"]

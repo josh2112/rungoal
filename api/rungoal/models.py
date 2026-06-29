@@ -66,6 +66,10 @@ class RunDataSource(StrEnum):
     RUNTRACKER = "runTracker"
 
 
+# This unique constraint will help us match incoming duplicate (maybe updated) runs without ID.
+run_unique_constriant_columns = ("user_id", "data_source", "data_source_id")
+
+
 class Run(SQLModel, table=True):
     __tablename__: str = "run"
 
@@ -97,7 +101,7 @@ class Run(SQLModel, table=True):
 
     track_points: list["TrackPoint"] = Relationship(back_populates="run", cascade_delete=True)
 
-    __table_args__ = (UniqueConstraint("data_source", "data_source_id", name="uq_data_source_id"),)
+    __table_args__ = (UniqueConstraint(*run_unique_constriant_columns, name="run_unique"),)
 
 
 class TrackPoint(SQLModel, table=True):

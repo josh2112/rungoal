@@ -1,8 +1,8 @@
 """Initial DB
 
-Revision ID: 7157b213b820
+Revision ID: f5c8949a701b
 Revises: 
-Create Date: 2026-06-28 15:30:25.052563
+Create Date: 2026-06-28 20:15:38.995809
 
 """
 from typing import Sequence, Union
@@ -18,7 +18,7 @@ import rungoal.models
 
 
 # revision identifiers, used by Alembic.
-revision: str = '7157b213b820'
+revision: str = 'f5c8949a701b'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -67,7 +67,7 @@ def upgrade() -> None:
     sa.Column('avg_ground_contact_time_duration', sa.Float(), nullable=True),
     sa.ForeignKeyConstraint(['user_id'], ['user.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('data_source', 'data_source_id', name='uq_data_source_id')
+    sa.UniqueConstraint('user_id', 'data_source', 'data_source_id', name='run_unique')
     )
     op.create_table('trackpoint',
     sa.Column('id', sa.Integer(), nullable=False),

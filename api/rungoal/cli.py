@@ -9,12 +9,12 @@ import httpx
 import typer
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from sqlalchemy.dialects.sqlite import insert
-from sqlmodel import Session, select
+from sqlmodel import Session, col, delete, select
 
 from rungoal.crud import get_user
 from rungoal.database import get_engine
 from rungoal.google import GoogleHealthClient
-from rungoal.models import Run, RunDataSource, User
+from rungoal.models import Run, RunDataSource, TrackPoint, User, run_unique_constriant_columns
 from rungoal.utils import TimeRange
 
 app = typer.Typer()
@@ -61,22 +61,24 @@ def sync_all_runs(user_id: int):
                     mid = TimeRange(lower.start + (upper.start - lower.start) / 2, duration=d)
                     progress.update(task, advance=1, dates=mid.start.date().strftime("%Y-%m-%d"))
 
+        # Reset progress display
         progress.columns = progress.get_default_columns()
-        _sync_runs(1, lower.start, progress=progress)
+
+        _sync_runs(user, lower.start, progress=progress)
 
 
 @app.command(help="Syncs runs from Google Health to the database for the given time range.")
 def sync_runs(user_id: int, from_: datetime, to: datetime | None = None):
-    with Progress() as p:
-        _sync_runs(user_id, from_, to, p)
+    with Progress() as p, get_db() as db:
+        _sync_runs(get_user(db, user_id), from_, to, p)
 
 
 # Syncs runs from Google Health to the database for the given time range. Existing runs
 # will only be overwritten in the event of a newer update time.
 # Returns: List of new or updated runs
 def _sync_runs(
-    user_id: int, from_: datetime, to: datetime | None = None, progress: Progress | None = None
-) -> list[Run]:
+    user: User, from_: datetime, to: datetime | None = None, progress: Progress | None = None
+):
     # Only grab at most 10 days of data at a time to avoid this Google Health API v4 bug:
     # https://issuetracker.google.com/issues/510170708
     # If a run is too far down in the list of returned results, it may have run-specific data
@@ -86,68 +88,92 @@ def _sync_runs(
 
     task = progress.add_task("Downloading runs...", total=len(ranges)) if progress else None
 
+    with get_db() as db, GoogleHealthClient(user, db) as client:
+
+        def _fetch(range_: TimeRange):
+            runs = client.fetch_runs(range_)
+            if progress is not None and task is not None:
+                progress.advance(task)
+            return runs
+
+        try:
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                runs = [run for lst in executor.map(_fetch, ranges) for run in lst]
+        except httpx.HTTPStatusError as e:
+            e.add_note(f"Response: {e.response.json()}")
+            raise
+
+    updated_runs = _update_runs(runs)
+    _sync_runtracker(user, Path("tmp/runtracker.db"), progress)
+    _sync_tcx(user, updated_runs, progress)
+
+
+# Insert or updates runs. On a conflict (matching data source and data source ID),
+# checks the run's update time. If greater than existing, updates all fields except
+# ID and the data source fields.
+def _update_runs(runs: list[Run]) -> list[Run]:
     with get_db() as db:
-        user = get_user(db, user_id)
+        sql = insert(Run).values(
+            # Get the runs as a Python dicts, values unmangled by JSON,
+            # excluding ID.
+            [
+                {
+                    key: val
+                    for key, val in run.__dict__.items()
+                    if key in Run.model_fields and key != "id"
+                }
+                for run in runs
+            ]
+        )
 
-        with GoogleHealthClient(user, db) as client:
-
-            def _fetch(range_: TimeRange):
-                runs = client.fetch_runs(range_)
-                if progress and task:
-                    progress.advance(task)
-                return runs
-
-            try:
-                with ThreadPoolExecutor(max_workers=4) as executor:
-                    runs = [run for lst in executor.map(_fetch, ranges) for run in lst]
-            except httpx.HTTPStatusError as e:
-                e.add_note(f"Response: {e.response.json()}")
-                raise
-
-        sql = insert(Run).values(runs)
-
-        # Insert all runs. On a conflict (matching data source and data source ID),
-        # check the update_time. If greater than existing, update all fields
-        # except ID and the data source fields.
-        runs = db.scalars(
+        updated_runs = db.scalars(
             sql.on_conflict_do_update(
-                index_elements=["data_source", "data_source_id"],
+                index_elements=run_unique_constriant_columns,
                 set_={
                     n: getattr(sql.excluded, n)
                     for n in Run.model_fields
-                    if n not in ["id", "data_source", "data_source_id"]
+                    if n not in list(run_unique_constriant_columns) + ["id"]
                 },
                 where=sql.excluded.update_time > Run.update_time,
             ).returning(Run)
         ).all()
         db.commit()
 
-    return list(runs)
+    return list(updated_runs)
 
 
-@app.command()
+@app.command(help="Syncs runs from a Runtracker database (by email) to our database.")
 def sync_runtracker(
     user_id: int, runtracker_db_path: Annotated[Path, typer.Argument(dir_okay=False, exists=True)]
 ):
-    # Sync runs from the RunTracker app to our local DB. This assumes that all GH runs
-    # have already been downloaded.
+    with get_db() as db, Progress() as progress:
+        _sync_runtracker(get_user(db, user_id), runtracker_db_path, progress)
+
+
+def _sync_runtracker(user: User, runtracker_db_path: Path, progress: Progress | None = None):
     from rungoal.import_runtracker import RuntrackerRunSession, RuntrackerUser, get_runtracker_db
 
     with get_db() as db, get_runtracker_db(runtracker_db_path) as rt_db:
-        email = get_user(db, user_id).email
-
-        user = rt_db.exec(select(RuntrackerUser).where(RuntrackerUser.email == email)).first()
-        if not user:
-            print(f"No user with email '{email}' found in RunTracker database.")
+        rt_user = rt_db.exec(
+            select(RuntrackerUser).where(RuntrackerUser.email == user.email)
+        ).first()
+        if not rt_user:
+            print(f"No user with email '{user.email}' found in RunTracker database.")
             return
 
         gh_runs_by_date = {
             r.start_time.date(): r for r in db.exec(select(Run).where(Run.user_id == user.id)).all()
         }
 
-        for rt_run in rt_db.exec(
-            select(RuntrackerRunSession).where(RuntrackerRunSession.user_id == user.id)
-        ):
+        rt_runs = list(
+            rt_db.exec(
+                select(RuntrackerRunSession).where(RuntrackerRunSession.user_id == rt_user.id)
+            )
+        )
+
+        task = progress.add_task("Syncing Runtracker...", total=len(rt_runs)) if progress else None
+
+        for rt_run in rt_runs:
             if run := gh_runs_by_date.get(rt_run.date):
                 # We found a runtracker run matching a GH run by date. HealthConnect apparently
                 # doesn't sync calories from SamsungHealth, so import them here. But we ADD to
@@ -164,108 +190,61 @@ def sync_runtracker(
 
                 try:
                     end_time = start_utc + timedelta(seconds=rt_run.duration_secs)
-                    db.add(
-                        Run(
-                            user_id=user.id,
-                            data_source=RunDataSource.RUNTRACKER,
-                            data_source_id=str(rt_run.id),
-                            start_time=start_utc,
-                            end_time=end_time,
-                            update_time=end_time,
-                            calories=rt_run.calories,
-                            distance_millimeters=rt_run.distance_meters * 1000,
-                            average_pace_seconds_per_meter=rt_run.duration_secs
-                            / rt_run.distance_meters,
-                            active_duration=rt_run.duration_secs,
-                            steps=None,
-                            elevation_gain_millimeters=None,
-                            avg_cadence_steps_per_minute=None,
-                            avg_ground_contact_time_duration=None,
-                            avg_stride_length_millimeters=None,
-                            avg_vertical_oscillation_millimeters=None,
-                            avg_vertical_ratio=None,
-                        )
+                    run = Run(
+                        user_id=user.id,
+                        data_source=RunDataSource.RUNTRACKER,
+                        data_source_id=str(rt_run.id),
+                        start_time=start_utc,
+                        end_time=end_time,
+                        update_time=end_time,
+                        calories=rt_run.calories,
+                        distance_millimeters=rt_run.distance_meters * 1000,
+                        average_pace_seconds_per_meter=rt_run.duration_secs
+                        / rt_run.distance_meters,
+                        active_duration=rt_run.duration_secs,
+                        steps=None,
+                        elevation_gain_millimeters=None,
+                        avg_cadence_steps_per_minute=None,
+                        avg_ground_contact_time_duration=None,
+                        avg_stride_length_millimeters=None,
+                        avg_vertical_oscillation_millimeters=None,
+                        avg_vertical_ratio=None,
                     )
+
                 except Exception as e:
                     e.add_note(f"RT run ID={rt_run.id}")
                     raise
 
+            db.add(run)
+            if progress is not None and task is not None:
+                progress.advance(task)
+
         db.commit()
 
 
-"""@app.command()
-def fetch_tcx(user_id: int):
-    with get_db() as db, Progress() as p:
-        user = get_user(db, user_id)
-        runs = db.exec(
-            select(Run)
-            .where(Run.user_id == user.id)
-            .where(Run.data_source == RunDataSource.GOOGLE_HEALTH)
-        ).all()
+def _sync_tcx(user: User, runs: list[Run], progress: Progress | None = None):
+    task = progress.add_task("Downloading TCX files...", total=len(runs)) if progress else None
 
-        with GoogleHealthClient(user, db) as client:
+    with get_db() as db, GoogleHealthClient(user, db) as client:
+        # Remove any trackpoints associated with these runs
+        run_ids = [r.id for r in runs]
+        db.exec(delete(TrackPoint).where(col(TrackPoint.run_id).in_(run_ids)))
+        db.commit()
 
-            def _fetch(id_: str):
-                tcx = client.fetch_tcx(id_)
-                path = (folder / id_).with_suffix(".tcx")
-                with open(path, "wb") as f:
-                    f.write(tcx)
-                p.advance(t1)
+        def _fetch(run: Run) -> list[TrackPoint]:
+            trackpoint = client.fetch_tcx(run)
+            if progress is not None and task is not None:
+                progress.update(task)
+            return trackpoint
 
-            t1 = p.add_task("Downloading TCX files...", total=len(runs))
-            try:
-                with ThreadPoolExecutor(max_workers=4) as executor:
-                    return list(executor.map(_fetch, runs))
-            except httpx.HTTPStatusError as e:
-                e.add_note(f"Response: {e.response.json()}")
-                raise
+        try:
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                db.add_all(tp for lst in executor.map(_fetch, runs) for tp in lst)
+        except httpx.HTTPStatusError as e:
+            e.add_note(f"Response: {e.response.json()}")
+            raise
 
-
-@app.command()
-def import_tcx(user_id: int, tcx_path: Annotated[Path, RunsPathOpt]):
-    import xml.etree.ElementTree as ET
-
-    ns = {"tcx": "http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2"}
-
-    def get_subel_text(el: ET.Element, name: str):
-        subel = el.find(f"./tcx:{name}", ns)
-        assert subel is not None and subel.text
-        return subel.text
-
-    with get_db() as db:
-        user = get_user(db, user_id)
-
-        for p in tcx_path.glob("*.tcx"):
-            try:
-                run = db.exec(
-                    select(Run)
-                    .where(Run.user_id == user.id)
-                    .where(Run.data_source == RunDataSource.GOOGLE_HEALTH)
-                    .where(Run.data_source_id == p.stem)
-                ).one()
-
-                root = ET.parse(p).getroot()
-                for tp in root.findall(".//tcx:Trackpoint", ns):
-                    el_hr = tp.find("./tcx:HeartRateBpm/tcx:Value", ns)
-
-                    hr = int(el_hr.text) if el_hr is not None and el_hr.text is not None else None
-                    db.add(
-                        TrackPoint(
-                            run_id=run.id,
-                            elapsed_secs=(
-                                datetime.fromisoformat(get_subel_text(tp, "Time")) - run.start_time
-                            ).total_seconds(),
-                            alt_meters=float(get_subel_text(tp, "AltitudeMeters")),
-                            distance_meters=float(get_subel_text(tp, "DistanceMeters")),
-                            lat_deg=float(get_subel_text(tp, "Position/tcx:LatitudeDegrees")),
-                            lon_deg=float(get_subel_text(tp, "Position/tcx:LongitudeDegrees")),
-                            heart_rate_bpm=hr,
-                        )
-                    )
-            except Exception as e:
-                e.add_note(f"dataPointID={p.stem}")
-                raise
-        db.commit() """
+        db.commit()
 
 
 @app.command(help="Deletes and recreates the database, optionally recreating revision data.")
