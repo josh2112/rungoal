@@ -48,34 +48,30 @@ def sync_all_runs(user_id: int):
     # at the bottom of large queries may not include run-specific data), instead we can only query
     # about 10 days at a time. So do a binary search to find the very first recorded run (with a
     # lower bound of Jan 1 2020), then fetch from there.
-    with (
-        Progress(
-            TextColumn("[progress.description]{task.description}"),
-            SpinnerColumn(),
-            TextColumn("{task.fields[dates]}"),
-        ) as progress,
-        get_db() as db,
-    ):
+    with get_db() as db:
         user = get_user(db, user_id)
         with GoogleHealthClient(user, db) as client:
-            # First do a binary search.
-            task = progress.add_task("Finding oldest runs...", dates="")
-            d = timedelta(days=10)
-            lower = TimeRange(datetime(year=2020, month=1, day=1, tzinfo=UTC), duration=d)
-            upper = TimeRange(datetime.now(UTC) - d, duration=d)
-            mid = TimeRange(lower.start + (upper.start - lower.start) / 2, duration=d)
-            while not lower.overlaps(upper):
-                if client.fetch_runs(mid):
-                    upper = mid
-                else:
-                    lower = mid
+            with Progress(
+                TextColumn("[progress.description]{task.description}"),
+                SpinnerColumn(),
+                TextColumn("{task.fields[dates]}"),
+            ) as progress:
+                # First do a binary search.
+                task = progress.add_task("Finding oldest runs...", dates="")
+                d = timedelta(days=10)
+                lower = TimeRange(datetime(year=2020, month=1, day=1, tzinfo=UTC), duration=d)
+                upper = TimeRange(datetime.now(UTC) - d, duration=d)
                 mid = TimeRange(lower.start + (upper.start - lower.start) / 2, duration=d)
-                progress.update(task, advance=1, dates=mid.start.date().strftime("%Y-%m-%d"))
+                while not lower.overlaps(upper):
+                    if client.fetch_runs(mid):
+                        upper = mid
+                    else:
+                        lower = mid
+                    mid = TimeRange(lower.start + (upper.start - lower.start) / 2, duration=d)
+                    progress.update(task, advance=1, dates=mid.start.date().strftime("%Y-%m-%d"))
 
-            # Reset progress display
-            progress.columns = progress.get_default_columns()
-
-            _sync_runs(client, lower.start, progress=progress)
+            with Progress() as progress:
+                _sync_runs(client, lower.start, progress=progress)
 
 
 @app.command(help="Syncs runs from Google Health to the database for the given time range.")
@@ -157,42 +153,54 @@ def _sync_runs(
         e.add_note(f"Response: {e.response.json()}")
         raise
 
-    updated_runs = _update_runs(runs)
+    updated_runs = _update_runs(client.db, runs, span)
     _sync_tcx(client, updated_runs, progress)
 
 
-# Insert or updates runs. On a conflict (matching data source and data source ID),
-# checks the run's update time. If greater than existing, updates all fields except
-# ID and the data source fields.
-def _update_runs(runs: list[Run]) -> list[RunTcxFetchContext]:
-    with get_db() as db:
-        sql = insert(Run).values(
-            # Get the runs as a Python dicts, values unmangled by JSON,
-            # excluding ID.
-            [
-                {
-                    key: val
-                    for key, val in run.__dict__.items()
-                    if key in Run.model_fields and key != "id"
-                }
-                for run in runs
-            ]
-        )
+# Syncs the given run list against existing runs over a timespan.
+# 1) Existing runs with IDs not in the new runs are deleted.
+# 2) New runs with IDs not in the existing runs are added.
+# 3) Existing runs with a new run matching their ID are updated if the new run's update time
+# is newer than the existing run's update time.
+def _update_runs(db: Session, runs: list[Run], timespan: TimeRange) -> list[RunTcxFetchContext]:
+    if not runs:
+        return []
 
-        updated_runs = db.scalars(
-            sql.on_conflict_do_update(
-                index_elements=run_unique_constriant_columns,
-                set_={
-                    n: getattr(sql.excluded, n)
-                    for n in Run.model_fields
-                    if n not in list(run_unique_constriant_columns) + ["id"]
-                },
-                where=sql.excluded.update_time > Run.update_time,
-            ).returning(Run)
-        ).all()
-        db.commit()
+    db.exec(
+        delete(Run)
+        .where(col(Run.start_time) >= timespan.start)
+        .where(col(Run.start_time) <= timespan.end)
+        .where(col(Run.data_source_id).notin_([r.data_source_id for r in runs]))
+    )
+    db.commit()
 
-        return list(RunTcxFetchContext.model_validate(r) for r in updated_runs)
+    sql = insert(Run).values(
+        # Get the runs as a Python dicts, values unmangled by JSON,
+        # excluding ID.
+        [
+            {
+                key: val
+                for key, val in run.__dict__.items()
+                if key in Run.model_fields and key != "id"
+            }
+            for run in runs
+        ]
+    )
+
+    updated_runs = db.scalars(
+        sql.on_conflict_do_update(
+            index_elements=run_unique_constriant_columns,
+            set_={
+                n: getattr(sql.excluded, n)
+                for n in Run.model_fields
+                if n not in list(run_unique_constriant_columns) + ["id"]
+            },
+            where=sql.excluded.update_time > Run.update_time,
+        ).returning(Run)
+    ).all()
+    db.commit()
+
+    return list(RunTcxFetchContext.model_validate(r) for r in updated_runs)
 
 
 def _sync_runtracker(
@@ -309,28 +317,32 @@ def _sync_runtracker(
 def _sync_tcx(
     client: GoogleHealthClient, runs: list[RunTcxFetchContext], progress: Progress | None = None
 ):
-    task = progress.add_task("Downloading TCX files...", total=len(runs)) if progress else None
+    task = progress.add_task("Downloading TCX files...", total=len(runs) + 1) if progress else None
 
     # Remove any trackpoints associated with these runs
     client.db.exec(delete(TrackPoint).where(col(TrackPoint.run_id).in_([r.id for r in runs])))
     client.db.commit()
 
     def _fetch(run: RunTcxFetchContext) -> list[TrackPoint]:
+        # Sometimes the server hangs sending us a TCX file. Retry up to 4 times.
         retries = 4
-        while retries:
+        while True:
             try:
                 trackpoints = client.fetch_tcx(run)
                 if progress is not None and task is not None:
                     progress.advance(task)
                 return trackpoints
-            except:
-                if not retries:
+            except httpx.ReadTimeout:
+                if retries:
+                    retries -= 1
+                else:
                     raise
-                retries -= 1
 
     try:
         with ThreadPoolExecutor(max_workers=4) as executor:
             client.db.add_all(tp for lst in executor.map(_fetch, runs) for tp in lst)
+        if progress is not None and task is not None:
+            progress.advance(task)
     except httpx.HTTPStatusError as e:
         e.add_note(f"Response: {e.response.json()}")
         raise
