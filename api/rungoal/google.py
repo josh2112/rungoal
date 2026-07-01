@@ -10,7 +10,7 @@ import httpx
 from google.oauth2.credentials import Credentials
 from sqlmodel import Session
 
-from rungoal.models import Run, RunDataSource, RunTcxFetchContext, TrackPoint, User
+from rungoal.models import Run, RunDataSource, RunFetchContext, TrackPoint, User
 from rungoal.utils import TimeRange
 
 
@@ -61,9 +61,10 @@ class GoogleHealthClient(httpx.Client):
 
     def __init__(self, user: User, db: Session, *args, **kwargs):
         self.db, self.user = db, user
-        kwargs.setdefault("base_url", "https://health.googleapis.com/v4/users/me/dataTypes")
+        kwargs.setdefault("base_url", "https://health.googleapis.com/v4/users/me/")
         kwargs["auth"] = _GoogleApiAuth(user, db)
         kwargs.setdefault("headers", {"Accept": "application/json"})
+        kwargs.setdefault("transport", httpx.HTTPTransport(retries=3))
         super().__init__(*args, **kwargs)
 
     def fetch_runs(self, range_: TimeRange) -> list[Run]:
@@ -71,7 +72,7 @@ class GoogleHealthClient(httpx.Client):
         a = f'{field} >= "{range_.start.strftime(self.GOOGLE_DATETIME_FORMAT)}"'
         b = f'{field} < "{range_.end.strftime(self.GOOGLE_DATETIME_FORMAT)}"'
         response = self.get(
-            "/exercise/dataPoints:reconcile",
+            "dataTypes/exercise/dataPoints:reconcile",
             params={"filter": f"{a} AND {b}"},
         )
         response.raise_for_status()
@@ -86,9 +87,9 @@ class GoogleHealthClient(httpx.Client):
             )
         )
 
-    def fetch_tcx(self, run: RunTcxFetchContext) -> list[TrackPoint]:
+    def fetch_tcx(self, run: RunFetchContext) -> list[TrackPoint]:
         response = self.get(
-            f"/exercise/dataPoints/{run.data_source_id}:exportExerciseTcx?alt=media",
+            f"dataTypes/exercise/dataPoints/{run.data_source_id}:exportExerciseTcx?alt=media",
         )
         response.raise_for_status()
 

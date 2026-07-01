@@ -98,16 +98,33 @@ class Run(SQLModel, table=True):
     avg_ground_contact_time_duration: float | None
 
     track_points: list["TrackPoint"] = Relationship(back_populates="run", cascade_delete=True)
+    weather: "Weather" = Relationship(back_populates="run", cascade_delete=True)
 
     __table_args__ = (UniqueConstraint(*run_unique_constriant_columns, name="run_unique"),)
 
 
-class RunTcxFetchContext(BaseModel):
+class WeatherBase(SQLModel):
+    temp_c: float | None
+    apparent_temp_c: float | None
+    humidity_pct: float | None
+    rain_mm: float | None
+    cloud_cover_pct: float | None
+
+
+class Weather(WeatherBase, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+
+    run_id: int | None = Field(default=None, foreign_key="run.id", ondelete="CASCADE")
+    run: Run | None = Relationship(back_populates="weather")
+
+
+class RunFetchContext(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     data_source_id: str
     start_time: datetime
+    end_time: datetime
 
 
 class TrackPoint(SQLModel, table=True):

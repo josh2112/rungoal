@@ -7,7 +7,8 @@ from typing import Annotated
 
 import httpx
 import typer
-from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.progress import Progress, SpinnerColumn, TaskID, TextColumn
+from sqlalchemy import func
 from sqlalchemy.dialects.sqlite import insert
 from sqlmodel import Session, col, delete, select
 
@@ -19,11 +20,13 @@ from rungoal.models import (
     Goal,
     Run,
     RunDataSource,
-    RunTcxFetchContext,
+    RunFetchContext,
     TrackPoint,
     User,
+    Weather,
     run_unique_constriant_columns,
 )
+from rungoal.open_meteo import OpenMeteoClient
 from rungoal.utils import TimeRange
 
 app = typer.Typer()
@@ -33,6 +36,11 @@ app = typer.Typer()
 def get_db():
     with Session(get_engine()) as session:
         yield session
+
+
+def advance(progress: Progress | None, task: TaskID | None):
+    if progress is not None and task is not None:
+        progress.advance(task)
 
 
 @app.command(help="Prints the user list.")
@@ -92,6 +100,21 @@ def sync_runtracker(
             _sync_runtracker(client, runtracker_db_path, progress)
 
 
+@app.command(help="Syncs weather data for runs in the given timespan.")
+def sync_weather(user_id: int, from_: datetime, to: datetime | None = None):
+    with Progress() as p, get_db() as db:
+        user = get_user(db, user_id)
+        sql = (
+            select(Run)
+            .where(Run.user_id == user.id)
+            .where(Run.start_time >= from_.replace(tzinfo=UTC))
+        )
+        if to:
+            sql = sql.where(Run.end_time <= to.replace(tzinfo=UTC))
+        runs = db.exec(sql).all()
+        _sync_wx(db, list(RunFetchContext.model_validate(r) for r in runs), p)
+
+
 @app.command(help="Deletes and recreates the database, optionally recreating revision data.")
 def init_db_test(regen: bool = False):
     from alembic import command
@@ -142,8 +165,7 @@ def _sync_runs(
 
     def _fetch(range_: TimeRange):
         runs = client.fetch_runs(range_)
-        if progress is not None and task is not None:
-            progress.advance(task)
+        advance(progress, task)
         return runs
 
     try:
@@ -155,6 +177,7 @@ def _sync_runs(
 
     updated_runs = _update_runs(client.db, runs, span)
     _sync_tcx(client, updated_runs, progress)
+    _sync_wx(client.db, updated_runs, progress)
 
 
 # Syncs the given run list against existing runs over a timespan.
@@ -162,7 +185,7 @@ def _sync_runs(
 # 2) New runs with IDs not in the existing runs are added.
 # 3) Existing runs with a new run matching their ID are updated if the new run's update time
 # is newer than the existing run's update time.
-def _update_runs(db: Session, runs: list[Run], timespan: TimeRange) -> list[RunTcxFetchContext]:
+def _update_runs(db: Session, runs: list[Run], timespan: TimeRange) -> list[RunFetchContext]:
     if not runs:
         return []
 
@@ -200,7 +223,7 @@ def _update_runs(db: Session, runs: list[Run], timespan: TimeRange) -> list[RunT
     ).all()
     db.commit()
 
-    return list(RunTcxFetchContext.model_validate(r) for r in updated_runs)
+    return list(RunFetchContext.model_validate(r) for r in updated_runs)
 
 
 def _sync_runtracker(
@@ -274,8 +297,7 @@ def _sync_runtracker(
                     raise
 
             client.db.add(run)
-            if progress is not None and task is not None:
-                progress.advance(task)
+            advance(progress, task)
 
         goals = client.db.exec(select(Goal).where(Goal.user_id == client.user.id))
         rt_goals = rt_db.exec(
@@ -308,14 +330,13 @@ def _sync_runtracker(
                         distance_meters=rt_goal.distance_meters,
                     )
                 )
-            if progress is not None and task is not None:
-                progress.advance(task)
+            advance(progress, task)
 
         client.db.commit()
 
 
 def _sync_tcx(
-    client: GoogleHealthClient, runs: list[RunTcxFetchContext], progress: Progress | None = None
+    client: GoogleHealthClient, runs: list[RunFetchContext], progress: Progress | None = None
 ):
     task = progress.add_task("Downloading TCX files...", total=len(runs) + 1) if progress else None
 
@@ -323,28 +344,50 @@ def _sync_tcx(
     client.db.exec(delete(TrackPoint).where(col(TrackPoint.run_id).in_([r.id for r in runs])))
     client.db.commit()
 
-    def _fetch(run: RunTcxFetchContext) -> list[TrackPoint]:
-        # Sometimes the server hangs sending us a TCX file. Retry up to 4 times.
-        retries = 4
-        while True:
-            try:
-                trackpoints = client.fetch_tcx(run)
-                if progress is not None and task is not None:
-                    progress.advance(task)
-                return trackpoints
-            except httpx.ReadTimeout:
-                if retries:
-                    retries -= 1
-                else:
-                    raise
+    def _fetch(run: RunFetchContext) -> list[TrackPoint]:
+        trackpoints = client.fetch_tcx(run)
+        advance(progress, task)
+        return trackpoints
 
     try:
         with ThreadPoolExecutor(max_workers=4) as executor:
             client.db.add_all(tp for lst in executor.map(_fetch, runs) for tp in lst)
-        if progress is not None and task is not None:
-            progress.advance(task)
+        advance(progress, task)
     except httpx.HTTPStatusError as e:
         e.add_note(f"Response: {e.response.json()}")
         raise
 
     client.db.commit()
+
+
+def _sync_wx(db: Session, runs: list[RunFetchContext], progress: Progress | None = None):
+    task = progress.add_task("Downloading weather...", total=len(runs) + 1) if progress else None
+
+    with OpenMeteoClient() as client:
+        for run in runs:
+            # Get average lat/lon of trackpoints (if we have any!)
+            lat, lon = db.exec(
+                select(func.avg(TrackPoint.lat_deg), func.avg(TrackPoint.lon_deg)).where(
+                    TrackPoint.run_id == run.id
+                )
+            ).one()
+
+            if lat is not None:
+                try:
+                    wx = client.fetch_weather(lat, lon, run.start_time, run.end_time)
+                except Exception as e:
+                    e.add_note(
+                        f"lat={lat} lon={lon} start_time={run.start_time} end_time={run.end_time}"
+                    )
+                    raise
+                db.add(Weather(run_id=run.id, **wx.model_dump()))
+
+            advance(progress, task)
+
+        db.commit()
+
+    advance(progress, task)
+
+
+if __name__ == "__main__":
+    app()

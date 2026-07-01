@@ -4,7 +4,6 @@
 
 Also include for each run:
 
-- historical weather data (temp, humidity, cloud cover) for each run
 - likely running location (Sherman Branch, Veteran's Park, etc.) computed from GPS track
     - Do we want to geolocate? Or have most common run places plugged in?
 

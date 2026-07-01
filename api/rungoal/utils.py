@@ -1,6 +1,8 @@
 from collections.abc import Iterable
 from datetime import datetime, timedelta
 
+from click.core import V
+
 
 class TimeRange:
     def __init__(
@@ -26,3 +28,21 @@ class TimeRange:
             cur = nxt
             nxt += duration
         yield TimeRange(cur, end=self.end)
+
+
+def block_overlap(values: list, start: float, end: float):
+    if all(v is None for v in values):
+        return None
+
+    duration = max(end - start, 0.1)
+    end = start + duration
+    wt_sum = 0
+
+    for i, value in enumerate(values):
+        block = i - 0.5, i + 0.5
+        overlap = min(end, block[1]) - max(start, block[0])
+
+        if overlap > 0:
+            wt_sum += value * overlap / duration
+
+    return wt_sum
