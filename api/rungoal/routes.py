@@ -1,11 +1,14 @@
+from collections.abc import AsyncIterable
 from typing import Annotated
 
 from fastapi import APIRouter, Cookie, HTTPException, Response, status
+from fastapi.sse import EventSourceResponse
 from jose import JWTError
 
 from rungoal import auth, crud
 from rungoal.deps import DepDb, DepSettings, DepUser
 from rungoal.models import AccessToken, GoogleApiAuthCode, User, UserBase
+from rungoal.sync import SyncProgress, do_sync
 
 api = APIRouter(prefix="/api")
 
@@ -73,3 +76,12 @@ def logout(response: Response):
 @api.get("/user/me")
 def get_user(user: DepUser) -> UserBase:
     return user
+
+
+@api.get("/sync", response_class=EventSourceResponse)
+async def sync(
+    user: DepUser,
+    start: bool = False,
+    include_runtracker: bool = False,
+):
+    return do_sync(user, start, include_runtracker)
