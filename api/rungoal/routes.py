@@ -1,4 +1,3 @@
-from collections.abc import AsyncIterable
 from typing import Annotated
 
 from fastapi import APIRouter, Cookie, HTTPException, Response, status
@@ -8,7 +7,7 @@ from jose import JWTError
 from rungoal import auth, crud
 from rungoal.deps import DepDb, DepSettings, DepUser
 from rungoal.models import AccessToken, GoogleApiAuthCode, User, UserBase
-from rungoal.sync import SyncProgress, do_sync
+from rungoal.sync import SyncProgress, do_sync, sync_status
 
 api = APIRouter(prefix="/api")
 
@@ -78,7 +77,18 @@ def get_user(user: DepUser) -> UserBase:
     return user
 
 
-@api.get("/sync", response_class=EventSourceResponse)
+@api.get("/sync/status")
+def get_sync_status(user: DepUser) -> SyncProgress:
+    return sync_status(user)
+
+
+@api.post("/sync")
+def start_sync(user: DepUser, include_runtracker: bool = False):
+    do_sync(user, include_runtracker)
+    return status.HTTP_202_ACCEPTED
+
+
+@api.get("/sync/stream", response_class=EventSourceResponse)
 async def sync(
     user: DepUser,
     start: bool = False,

@@ -73,6 +73,13 @@ class SyncOperation:
             del _syncs_in_progress[self.user_id]
 
 
+def sync_status(user: User) -> SyncProgress:
+    assert user.id is not None
+    if user.id not in _syncs_in_progress:
+        return SyncProgress(is_complete=True)
+    return _syncs_in_progress[user.id].progress
+
+
 async def do_sync(
     user: User, start_new: bool, include_runtracker: bool
 ) -> AsyncIterable[SyncProgress]:
