@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { onMounted, ref } from "vue";
-import type { User } from "../models";
+import type { SyncProgress, User } from "../models";
 import { useApi } from "./api";
 
 export const useSession = defineStore("session", () => {
@@ -31,5 +31,9 @@ export const useSession = defineStore("session", () => {
         user.value = (await api.get("/user/me")).data;
     }
 
-    return { user, logIn, logOut };
+    async function getSyncStatus(): Promise<SyncProgress> {
+        return (await api.get("/sync/status")).data as SyncProgress;
+    }
+
+    return { user, logIn, logOut, getSyncStatus };
 });

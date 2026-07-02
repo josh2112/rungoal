@@ -3,6 +3,7 @@ import contextlib
 from collections.abc import AsyncIterable
 from enum import StrEnum
 
+from fastapi import HTTPException, status
 from pydantic import BaseModel, Field
 from sqlmodel import Session
 
@@ -73,27 +74,32 @@ class SyncOperation:
             del _syncs_in_progress[self.user_id]
 
 
-def sync_status(user: User) -> SyncProgress:
-    assert user.id is not None
-    if user.id not in _syncs_in_progress:
+# Returns the status of the current sync operation. If no sync
+# is in progress, resturns a completed SyncProgress.
+def sync_status(user_id: int) -> SyncProgress:
+    if user_id not in _syncs_in_progress:
         return SyncProgress(is_complete=True)
-    return _syncs_in_progress[user.id].progress
+    return _syncs_in_progress[user_id].progress
 
 
-async def do_sync(
-    user: User, start_new: bool, include_runtracker: bool
-) -> AsyncIterable[SyncProgress]:
+# Starts a sync, if one is not already in progress.
+async def sync_start(user: User, include_runtracker: bool):
     assert user.id is not None
     if user.id not in _syncs_in_progress:
-        if not start_new:
-            # Let the frontend know that no sync is in progress first
-            yield SyncProgress(is_complete=True)
-            return
         _syncs_in_progress[user.id] = SyncOperation(
             user.id, user.email if include_runtracker else None
         )
-    sync = _syncs_in_progress[user.id]
 
+
+# Returns the sync progress stream. If no sync is in progress, resturns
+# HTTP 409 Conflict.
+async def sync_stream(user_id: int) -> AsyncIterable[SyncProgress]:
+    if user_id not in _syncs_in_progress:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No sync in progress",
+        )
+    sync = _syncs_in_progress[user_id]
     queue = sync.subscribe()
 
     try:
