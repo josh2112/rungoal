@@ -35,5 +35,9 @@ export const useSession = defineStore("session", () => {
         return (await api.get("/sync/status")).data as SyncProgress;
     }
 
-    return { user, logIn, logOut, getSyncStatus };
+    async function startSync() {
+        await api.post("/sync");
+    }
+
+    return { user, logIn, logOut, getSyncStatus, startSync };
 });

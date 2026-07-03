@@ -26,7 +26,7 @@ class SyncTasks(StrEnum):
 
 class SyncProgress(BaseModel):
     is_complete: bool = False
-    progress: dict[SyncTasks, float] = Field(default_factory=lambda: {t: 0.0 for t in SyncTasks})
+    tasks: list[tuple[SyncTasks, float]] = Field(default=[])
 
 
 _syncs_in_progress: dict[int, "SyncOperation"] = {}
@@ -58,9 +58,11 @@ class SyncOperation:
         try:
             # with get_db() as db:
             #     await asyncio.to_thread(sync_runs_function, db, self.user_id)
+
+            self.progress.tasks.append((SyncTasks.runs, 0))
             for step in range(1, 11):
                 await asyncio.sleep(1)
-                self.progress.progress[SyncTasks.runs] = step / 10.0
+                self.progress.tasks[-1][1] = step / 10.0
                 self._broadcast()
 
         except Exception as e:

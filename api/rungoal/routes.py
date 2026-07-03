@@ -86,13 +86,14 @@ def get_sync_status(user: DepUser) -> SyncProgress:
     return sync_status(user.id)
 
 
+@api.get("/sync/stream", response_class=EventSourceResponse)
+async def get_sync_stream(user: DepUser) -> AsyncIterable[SyncProgress]:
+    assert user.id is not None
+    async for p in sync_stream(user.id):
+        yield p
+
+
 @api.post("/sync")
 async def start_sync(user: DepUser, include_runtracker: bool = False):
     await sync_start(user, include_runtracker)
     return status.HTTP_202_ACCEPTED
-
-
-@api.get("/sync/stream", response_class=EventSourceResponse)
-async def get_sync_stream(user: DepUser) -> AsyncIterable[SyncProgress]:
-    assert user.id is not None
-    return sync_stream(user.id)

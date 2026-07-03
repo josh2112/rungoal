@@ -9,8 +9,12 @@ const api = useApi();
 const session = useSession();
 
 async function startSync() {
-    await fetchEventSource(`${import.meta.env.BASE_URL}/api/sync`, {
-        method: "POST",
+    await session.startSync();
+    streamEvents();
+}
+
+function streamEvents() {
+    fetchEventSource(`${import.meta.env.BASE_URL}/api/sync/stream`, {
         headers: {
             Authorization: `Bearer ${api.accessToken}`,
         },
@@ -35,6 +39,7 @@ onMounted(async () => {
     const p = await session.getSyncStatus();
     if (!p.is_complete) {
         progress.value = p;
+        streamEvents();
     }
 });
 </script>

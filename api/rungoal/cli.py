@@ -7,7 +7,7 @@ from typing import Annotated
 
 import httpx
 import typer
-from rich.progress import Progress, SpinnerColumn, TaskID, TextColumn
+from rich.progress import Progress
 from sqlalchemy import func
 from sqlalchemy.dialects.sqlite import insert
 from sqlmodel import Session, col, delete, select
@@ -38,56 +38,34 @@ def get_db():
         yield session
 
 
-def advance(progress: Progress | None, task: TaskID | None):
-    if progress is not None and task is not None:
-        progress.advance(task)
-
-
-@app.command(help="Prints the user list.")
-def users():
-    with get_db() as db:
-        for user in db.exec(select(User)).all():
-            print(f"{user.id}, {user.name}, {user.email}")
-
-
-@app.command(help="Syncs all known runs from Google Health to the database.")
-def sync_all_runs(user_id: int):
-    # Syncs all GH API runs. We can't just do one massive query and page it due to GH API bugs (runs
-    # at the bottom of large queries may not include run-specific data), instead we can only query
-    # about 10 days at a time. So do a binary search to find the very first recorded run (with a
-    # lower bound of Jan 1 2020), then fetch from there.
-    with get_db() as db:
+@app.command(
+    help="Syncs runs from Google Health to the database for the given time range. If no dates "
+    "are given, syncs all runs. If only 'from' is given syncs all runs from then to present."
+)
+def sync_runs(
+    user_id: int,
+    from_: Annotated[
+        datetime | None,
+        typer.Option(
+            "--from",
+            help="Sync from this date. If not provided the oldest data is found automatically.",
+        ),
+    ] = None,
+    to: Annotated[
+        datetime | None,
+        typer.Option(help="Sync to this date, or the current time if not provided."),
+    ] = None,
+    runtracker_db_path: Annotated[
+        Path | None,
+        typer.Option(dir_okay=False, exists=True, help="Sync runs from a Runtracker database"),
+    ] = None,
+    tcx: Annotated[bool, typer.Option(help="Sync TCX files")] = True,
+    wx: Annotated[bool, typer.Option(help="Sync weather")] = True,
+):
+    with get_db() as db, Progress() as progress:
         user = get_user(db, user_id)
         with GoogleHealthClient(user, db) as client:
-            with Progress(
-                TextColumn("[progress.description]{task.description}"),
-                SpinnerColumn(),
-                TextColumn("{task.fields[dates]}"),
-            ) as progress:
-                # First do a binary search.
-                task = progress.add_task("Finding oldest runs...", dates="")
-                d = timedelta(days=10)
-                lower = TimeRange(datetime(year=2020, month=1, day=1, tzinfo=UTC), duration=d)
-                upper = TimeRange(datetime.now(UTC) - d, duration=d)
-                mid = TimeRange(lower.start + (upper.start - lower.start) / 2, duration=d)
-                while not lower.overlaps(upper):
-                    if client.fetch_runs(mid):
-                        upper = mid
-                    else:
-                        lower = mid
-                    mid = TimeRange(lower.start + (upper.start - lower.start) / 2, duration=d)
-                    progress.update(task, advance=1, dates=mid.start.date().strftime("%Y-%m-%d"))
-
-            with Progress() as progress:
-                _sync_runs(client, lower.start, progress=progress)
-
-
-@app.command(help="Syncs runs from Google Health to the database for the given time range.")
-def sync_runs(user_id: int, from_: datetime, to: datetime | None = None):
-    with Progress() as p, get_db() as db:
-        user = get_user(db, user_id)
-        with GoogleHealthClient(user, db) as client:
-            _sync_runs(client, from_, to, p)
+            _sync_runs(client, progress, from_, to, runtracker_db_path, tcx, wx)
 
 
 @app.command(help="Syncs runs from a Runtracker database (by email) to our database.")
@@ -146,14 +124,36 @@ def init_db_test(regen: bool = False):
 
 
 # Syncs runs from Google Health to the database for the given time range. Existing runs will only
-# be overwritten in the event of a newer update time.
-# Returns: List of new or updated runs
+# be overwritten in the event of a newer update time. If only [from] is given, syncs runs from
+# [from] to present. If [include_runtracker] is true, looks for a Runtracker account with matching
+# email and syncs it. We also sync TCX track files and look up historical weather for each run
+# (unless told not to)
 def _sync_runs(
     client: GoogleHealthClient,
-    from_: datetime,
+    progress: Progress,
+    from_: datetime | None = None,
     to: datetime | None = None,
-    progress: Progress | None = None,
+    runtracker_db_path: Annotated[Path, typer.Argument(dir_okay=False, exists=True)] | None = None,
+    tcx: bool = True,
+    wx: bool = True,
 ):
+    if not from_:
+        # Do a binary search to find the very first recorded run (with a lower bound of
+        # Jan 1 2020), then begin the sync from there.
+        task = progress.add_task("Finding oldest runs...", total=None, date="")
+        d = timedelta(days=10)
+        lower = TimeRange(datetime(year=2020, month=1, day=1, tzinfo=UTC), duration=d)
+        upper = TimeRange(datetime.now(UTC) - d, duration=d)
+        mid = TimeRange(lower.start + (upper.start - lower.start) / 2, duration=d)
+        while not lower.overlaps(upper):
+            if client.fetch_runs(mid):
+                upper = mid
+            else:
+                lower = mid
+            mid = TimeRange(lower.start + (upper.start - lower.start) / 2, duration=d)
+            progress.update(task, advance=1, date=mid.start.date().strftime("%Y-%m-%d"))
+        from_ = lower.start
+
     # Only grab at most 10 days of data at a time to avoid this Google Health API v4 bug:
     # https://issuetracker.google.com/issues/510170708
     # If a run is too far down in the list of returned results, it may have run-specific data
@@ -161,11 +161,11 @@ def _sync_runs(
     span = TimeRange(from_.replace(tzinfo=UTC), to.replace(tzinfo=UTC) if to else datetime.now(UTC))
     ranges = list(span.chunk(timedelta(days=10)))
 
-    task = progress.add_task("Downloading runs...", total=len(ranges)) if progress else None
+    task = progress.add_task("Downloading runs...", total=len(ranges))
 
     def _fetch(range_: TimeRange):
         runs = client.fetch_runs(range_)
-        advance(progress, task)
+        progress.advance(task)
         return runs
 
     try:
@@ -176,8 +176,12 @@ def _sync_runs(
         raise
 
     updated_runs = _update_runs(client.db, runs, span)
-    _sync_tcx(client, updated_runs, progress)
-    _sync_wx(client.db, updated_runs, progress)
+    if tcx:
+        _sync_tcx(client, updated_runs, progress)
+    if wx:
+        _sync_wx(client.db, updated_runs, progress)
+    if runtracker_db_path:
+        _sync_runtracker(client, runtracker_db_path, progress)
 
 
 # Syncs the given run list against existing runs over a timespan.
@@ -185,10 +189,12 @@ def _sync_runs(
 # 2) New runs with IDs not in the existing runs are added.
 # 3) Existing runs with a new run matching their ID are updated if the new run's update time
 # is newer than the existing run's update time.
+# Returns list of runs that were added or updated.
 def _update_runs(db: Session, runs: list[Run], timespan: TimeRange) -> list[RunFetchContext]:
     if not runs:
         return []
 
+    # Delete existing runs during this timespan that do not appear in the new run list
     db.exec(
         delete(Run)
         .where(col(Run.start_time) >= timespan.start)
@@ -226,9 +232,7 @@ def _update_runs(db: Session, runs: list[Run], timespan: TimeRange) -> list[RunF
     return list(RunFetchContext.model_validate(r) for r in updated_runs)
 
 
-def _sync_runtracker(
-    client: GoogleHealthClient, runtracker_db_path: Path, progress: Progress | None = None
-):
+def _sync_runtracker(client: GoogleHealthClient, runtracker_db_path: Path, progress: Progress):
     from rungoal.import_runtracker import RuntrackerRunSession, RuntrackerUser, get_runtracker_db
 
     with get_runtracker_db(runtracker_db_path) as rt_db:
@@ -248,11 +252,7 @@ def _sync_runtracker(
             select(RuntrackerRunSession).where(RuntrackerRunSession.user_id == rt_user.id)
         ).all()
 
-        task = (
-            progress.add_task("Syncing Runtracker runs...", total=len(rt_runs))
-            if progress
-            else None
-        )
+        task = progress.add_task("Syncing Runtracker runs...", total=len(rt_runs))
 
         for rt_run in rt_runs:
             if run := gh_runs_by_date.get(rt_run.date):
@@ -297,18 +297,14 @@ def _sync_runtracker(
                     raise
 
             client.db.add(run)
-            advance(progress, task)
+            progress.advance(task)
 
         goals = client.db.exec(select(Goal).where(Goal.user_id == client.user.id))
         rt_goals = rt_db.exec(
             select(RuntrackerGoal).where(RuntrackerGoal.user_id == rt_user.id)
         ).all()
 
-        task = (
-            progress.add_task("Syncing Runtracker goals...", total=len(rt_goals))
-            if progress
-            else None
-        )
+        task = progress.add_task("Syncing Runtracker goals...", total=len(rt_goals))
 
         for rt_goal in rt_goals:
             match = next(
@@ -330,15 +326,13 @@ def _sync_runtracker(
                         distance_meters=rt_goal.distance_meters,
                     )
                 )
-            advance(progress, task)
+            progress.advance(task)
 
         client.db.commit()
 
 
-def _sync_tcx(
-    client: GoogleHealthClient, runs: list[RunFetchContext], progress: Progress | None = None
-):
-    task = progress.add_task("Downloading TCX files...", total=len(runs) + 1) if progress else None
+def _sync_tcx(client: GoogleHealthClient, runs: list[RunFetchContext], progress: Progress):
+    task = progress.add_task("Downloading TCX files...", total=len(runs) + 1)
 
     # Remove any trackpoints associated with these runs
     client.db.exec(delete(TrackPoint).where(col(TrackPoint.run_id).in_([r.id for r in runs])))
@@ -346,13 +340,13 @@ def _sync_tcx(
 
     def _fetch(run: RunFetchContext) -> list[TrackPoint]:
         trackpoints = client.fetch_tcx(run)
-        advance(progress, task)
+        progress.advance(task)
         return trackpoints
 
     try:
         with ThreadPoolExecutor(max_workers=4) as executor:
             client.db.add_all(tp for lst in executor.map(_fetch, runs) for tp in lst)
-        advance(progress, task)
+        progress.advance(task)
     except httpx.HTTPStatusError as e:
         e.add_note(f"Response: {e.response.json()}")
         raise
@@ -360,8 +354,8 @@ def _sync_tcx(
     client.db.commit()
 
 
-def _sync_wx(db: Session, runs: list[RunFetchContext], progress: Progress | None = None):
-    task = progress.add_task("Downloading weather...", total=len(runs) + 1) if progress else None
+def _sync_wx(db: Session, runs: list[RunFetchContext], progress: Progress):
+    task = progress.add_task("Downloading weather...", total=len(runs) + 1)
 
     with OpenMeteoClient() as client:
         for run in runs:
@@ -382,11 +376,11 @@ def _sync_wx(db: Session, runs: list[RunFetchContext], progress: Progress | None
                     raise
                 db.add(Weather(run_id=run.id, **wx.model_dump()))
 
-            advance(progress, task)
+            progress.advance(task)
 
         db.commit()
 
-    advance(progress, task)
+    progress.advance(task)
 
 
 if __name__ == "__main__":
