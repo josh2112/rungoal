@@ -20,7 +20,6 @@ function streamEvents() {
         },
         onmessage(msg) {
             syncState.value = JSON.parse(msg.data);
-            console.log("Progress updated:", syncState.value);
         },
         onerror(err) {
             console.error("SSE Error:", err);
@@ -28,7 +27,6 @@ function streamEvents() {
         },
         onclose() {
             syncState.value = undefined;
-            console.log("Sync complete!");
         },
     });
 }

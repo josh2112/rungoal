@@ -1,7 +1,10 @@
 ## TODO
 
-Get rid of binary search for determining oldest runs. Just start with today and go back 10-day chunks at a time until
-we see no more.
+Complete end-to-end sync is working! Now gotta figure out:
+
+- How to indicate whether or not user wants runtracker sync first time?
+    - Some kind of onboaring flow. But for that we have to know if it's a new user.
+- How to sync custom dates? (maybe a button on any run "sync from here")
 
 ## Fitbit
 

@@ -8,7 +8,7 @@ from jose import JWTError
 from rungoal import auth, crud
 from rungoal.deps import DepDb, DepSettings, DepUser
 from rungoal.models import AccessToken, GoogleApiAuthCode, User, UserBase
-from rungoal.sync import SyncState, sync_start, sync_status, sync_stream
+from rungoal.sync_operation import SyncState, sync_start, sync_status, sync_stream
 
 api = APIRouter(prefix="/api")
 

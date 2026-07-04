@@ -9,8 +9,11 @@ class Settings(BaseSettings):
     JWT_REFRESH_TOKEN_KEY: str
     GOOGLE_REFRESH_TOKEN_KEY: str
 
+    RUNTRACKER_DB: str
+
     # Optional
     DEV: bool = False
     DEBUG_SQL: bool = False
 
-settings = Settings.model_validate( {} )
+
+settings = Settings.model_validate({})

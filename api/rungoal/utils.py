@@ -11,6 +11,8 @@ class TimeRange:
         if duration:
             self.end = start + duration
         elif end:
+            if end < start:
+                raise Exception("End time must be after start time")
             self.end = end
         else:
             raise Exception("Must include either [end] or [duration]")
@@ -45,9 +47,6 @@ def block_overlap(values: list, start: float, end: float):
             wt_sum += value * overlap / duration
 
     return wt_sum
-
-
-class ProgressTaskProtocol(Protocol): ...
 
 
 class ProgressProtocol(Protocol):
