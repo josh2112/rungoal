@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import { onMounted, ref } from "vue";
-import { type SyncProgress } from "../models";
+import { type SyncState } from "../models";
 import { useApi } from "../stores/api";
 import { useSession } from "../stores/session";
 
@@ -19,32 +19,37 @@ function streamEvents() {
             Authorization: `Bearer ${api.accessToken}`,
         },
         onmessage(msg) {
-            progress.value = JSON.parse(msg.data);
-            console.log("Progress updated:", progress.value);
+            syncState.value = JSON.parse(msg.data);
+            console.log("Progress updated:", syncState.value);
         },
         onerror(err) {
             console.error("SSE Error:", err);
             throw err;
         },
         onclose() {
-            progress.value = undefined;
+            syncState.value = undefined;
             console.log("Sync complete!");
         },
     });
 }
 
-const progress = ref<SyncProgress>();
+const syncState = ref<SyncState>();
 
 onMounted(async () => {
     const p = await session.getSyncStatus();
     if (!p.is_complete) {
-        progress.value = p;
+        syncState.value = p;
         streamEvents();
     }
 });
 </script>
 
 <template>
-    <button v-if="!progress" @click="() => startSync()">Sync</button>
-    <span v-else>{{ progress }}</span>
+    <button v-if="!syncState" @click="() => startSync()">Sync</button>
+    <div v-else>
+        <div v-for="task in syncState.tasks" :key="task.task">
+            <span>{{ task.task }}</span>
+            <progress :value="task.value" :max="task.total ?? undefined" />
+        </div>
+    </div>
 </template>

@@ -10,7 +10,11 @@ export interface User {
     avatar_uri: string;
 }
 
-export interface SyncProgress {
+export interface SyncState {
     is_complete: boolean;
-    progress: Record<string, number>;
+    tasks: {
+        task: string;
+        value: number;
+        total: number | null;
+    }[];
 }

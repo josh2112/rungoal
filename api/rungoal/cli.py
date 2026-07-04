@@ -7,7 +7,7 @@ from typing import Annotated
 
 import httpx
 import typer
-from rich.progress import Progress
+from rich.progress import Progress as RichProgress
 from sqlalchemy import func
 from sqlalchemy.dialects.sqlite import insert
 from sqlmodel import Session, col, delete, select
@@ -27,9 +27,21 @@ from rungoal.models import (
     run_unique_constriant_columns,
 )
 from rungoal.open_meteo import OpenMeteoClient
-from rungoal.utils import TimeRange
+from rungoal.utils import ProgressProtocol, TimeRange
 
 app = typer.Typer()
+
+
+class CliProgress(ProgressProtocol):
+    def __init__(self):
+        self.progress = RichProgress()
+
+    def start_task(self, task: str, total: float | None) -> None:
+        self.progress.add_task(task, total=total)
+
+    def advance(self, task: str) -> None:
+        t = next(t for t in self.progress.tasks if t.description == task)
+        self.progress.advance(t.id)
 
 
 @contextlib.contextmanager
@@ -62,25 +74,25 @@ def sync_runs(
     tcx: Annotated[bool, typer.Option(help="Sync TCX files")] = True,
     wx: Annotated[bool, typer.Option(help="Sync weather")] = True,
 ):
-    with get_db() as db, Progress() as progress:
+    with get_db() as db:
         user = get_user(db, user_id)
         with GoogleHealthClient(user, db) as client:
-            _sync_runs(client, progress, from_, to, runtracker_db_path, tcx, wx)
+            _sync_runs(client, CliProgress(), from_, to, runtracker_db_path, tcx, wx)
 
 
 @app.command(help="Syncs runs from a Runtracker database (by email) to our database.")
 def sync_runtracker(
     user_id: int, runtracker_db_path: Annotated[Path, typer.Argument(dir_okay=False, exists=True)]
 ):
-    with get_db() as db, Progress() as progress:
+    with get_db() as db:
         user = get_user(db, user_id)
         with GoogleHealthClient(user, db) as client:
-            _sync_runtracker(client, runtracker_db_path, progress)
+            _sync_runtracker(client, CliProgress(), runtracker_db_path)
 
 
 @app.command(help="Syncs weather data for runs in the given timespan.")
 def sync_weather(user_id: int, from_: datetime, to: datetime | None = None):
-    with Progress() as p, get_db() as db:
+    with get_db() as db:
         user = get_user(db, user_id)
         sql = (
             select(Run)
@@ -90,7 +102,7 @@ def sync_weather(user_id: int, from_: datetime, to: datetime | None = None):
         if to:
             sql = sql.where(Run.end_time <= to.replace(tzinfo=UTC))
         runs = db.exec(sql).all()
-        _sync_wx(db, list(RunFetchContext.model_validate(r) for r in runs), p)
+        _sync_wx(db, CliProgress(), list(RunFetchContext.model_validate(r) for r in runs))
 
 
 @app.command(help="Deletes and recreates the database, optionally recreating revision data.")
@@ -130,17 +142,20 @@ def init_db_test(regen: bool = False):
 # (unless told not to)
 def _sync_runs(
     client: GoogleHealthClient,
-    progress: Progress,
+    progress: ProgressProtocol,
     from_: datetime | None = None,
     to: datetime | None = None,
     runtracker_db_path: Annotated[Path, typer.Argument(dir_okay=False, exists=True)] | None = None,
     tcx: bool = True,
     wx: bool = True,
 ):
+    task1 = "Finding oldest runs..."
+    task2 = "Downloading runs..."
+
     if not from_:
         # Do a binary search to find the very first recorded run (with a lower bound of
         # Jan 1 2020), then begin the sync from there.
-        task = progress.add_task("Finding oldest runs...", total=None, date="")
+        progress.start_task(task1, total=None)
         d = timedelta(days=10)
         lower = TimeRange(datetime(year=2020, month=1, day=1, tzinfo=UTC), duration=d)
         upper = TimeRange(datetime.now(UTC) - d, duration=d)
@@ -151,7 +166,7 @@ def _sync_runs(
             else:
                 lower = mid
             mid = TimeRange(lower.start + (upper.start - lower.start) / 2, duration=d)
-            progress.update(task, advance=1, date=mid.start.date().strftime("%Y-%m-%d"))
+            progress.advance(task1)
         from_ = lower.start
 
     # Only grab at most 10 days of data at a time to avoid this Google Health API v4 bug:
@@ -161,11 +176,11 @@ def _sync_runs(
     span = TimeRange(from_.replace(tzinfo=UTC), to.replace(tzinfo=UTC) if to else datetime.now(UTC))
     ranges = list(span.chunk(timedelta(days=10)))
 
-    task = progress.add_task("Downloading runs...", total=len(ranges))
+    progress.start_task(task2, total=len(ranges))
 
     def _fetch(range_: TimeRange):
         runs = client.fetch_runs(range_)
-        progress.advance(task)
+        progress.advance(task2)
         return runs
 
     try:
@@ -177,11 +192,11 @@ def _sync_runs(
 
     updated_runs = _update_runs(client.db, runs, span)
     if tcx:
-        _sync_tcx(client, updated_runs, progress)
+        _sync_tcx(client, progress, updated_runs)
     if wx:
-        _sync_wx(client.db, updated_runs, progress)
+        _sync_wx(client.db, progress, updated_runs)
     if runtracker_db_path:
-        _sync_runtracker(client, runtracker_db_path, progress)
+        _sync_runtracker(client, progress, runtracker_db_path)
 
 
 # Syncs the given run list against existing runs over a timespan.
@@ -232,8 +247,13 @@ def _update_runs(db: Session, runs: list[Run], timespan: TimeRange) -> list[RunF
     return list(RunFetchContext.model_validate(r) for r in updated_runs)
 
 
-def _sync_runtracker(client: GoogleHealthClient, runtracker_db_path: Path, progress: Progress):
+def _sync_runtracker(
+    client: GoogleHealthClient, progress: ProgressProtocol, runtracker_db_path: Path
+):
     from rungoal.import_runtracker import RuntrackerRunSession, RuntrackerUser, get_runtracker_db
+
+    task1 = "Syncing Runtracker runs..."
+    task2 = "Syncing Runtracker goals..."
 
     with get_runtracker_db(runtracker_db_path) as rt_db:
         rt_user = rt_db.exec(
@@ -252,7 +272,7 @@ def _sync_runtracker(client: GoogleHealthClient, runtracker_db_path: Path, progr
             select(RuntrackerRunSession).where(RuntrackerRunSession.user_id == rt_user.id)
         ).all()
 
-        task = progress.add_task("Syncing Runtracker runs...", total=len(rt_runs))
+        progress.start_task(task1, total=len(rt_runs))
 
         for rt_run in rt_runs:
             if run := gh_runs_by_date.get(rt_run.date):
@@ -297,14 +317,14 @@ def _sync_runtracker(client: GoogleHealthClient, runtracker_db_path: Path, progr
                     raise
 
             client.db.add(run)
-            progress.advance(task)
+            progress.advance(task1)
 
         goals = client.db.exec(select(Goal).where(Goal.user_id == client.user.id))
         rt_goals = rt_db.exec(
             select(RuntrackerGoal).where(RuntrackerGoal.user_id == rt_user.id)
         ).all()
 
-        task = progress.add_task("Syncing Runtracker goals...", total=len(rt_goals))
+        progress.start_task(task2, total=len(rt_goals))
 
         for rt_goal in rt_goals:
             match = next(
@@ -326,13 +346,14 @@ def _sync_runtracker(client: GoogleHealthClient, runtracker_db_path: Path, progr
                         distance_meters=rt_goal.distance_meters,
                     )
                 )
-            progress.advance(task)
+            progress.advance(task2)
 
         client.db.commit()
 
 
-def _sync_tcx(client: GoogleHealthClient, runs: list[RunFetchContext], progress: Progress):
-    task = progress.add_task("Downloading TCX files...", total=len(runs) + 1)
+def _sync_tcx(client: GoogleHealthClient, progress: ProgressProtocol, runs: list[RunFetchContext]):
+    task = "Downloading TCX files..."
+    progress.start_task(task, total=len(runs) + 1)
 
     # Remove any trackpoints associated with these runs
     client.db.exec(delete(TrackPoint).where(col(TrackPoint.run_id).in_([r.id for r in runs])))
@@ -354,8 +375,9 @@ def _sync_tcx(client: GoogleHealthClient, runs: list[RunFetchContext], progress:
     client.db.commit()
 
 
-def _sync_wx(db: Session, runs: list[RunFetchContext], progress: Progress):
-    task = progress.add_task("Downloading weather...", total=len(runs) + 1)
+def _sync_wx(db: Session, progress: ProgressProtocol, runs: list[RunFetchContext]):
+    task = "Downloading weather..."
+    progress.start_task(task, total=len(runs) + 1)
 
     with OpenMeteoClient() as client:
         for run in runs:

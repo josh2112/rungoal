@@ -1,7 +1,6 @@
 from collections.abc import Iterable
 from datetime import datetime, timedelta
-
-from click.core import V
+from typing import Protocol
 
 
 class TimeRange:
@@ -46,3 +45,11 @@ def block_overlap(values: list, start: float, end: float):
             wt_sum += value * overlap / duration
 
     return wt_sum
+
+
+class ProgressTaskProtocol(Protocol): ...
+
+
+class ProgressProtocol(Protocol):
+    def start_task(self, task: str, total: int | None) -> None: ...
+    def advance(self, task: str) -> None: ...

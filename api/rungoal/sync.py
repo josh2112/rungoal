@@ -9,6 +9,7 @@ from sqlmodel import Session
 
 from rungoal.database import get_engine
 from rungoal.models import User
+from rungoal.utils import ProgressProtocol
 
 
 @contextlib.contextmanager
@@ -18,31 +19,44 @@ def get_db():
 
 
 class SyncTasks(StrEnum):
+    find_start = "find_start"
     runs = "runs"
     runtracker = "runtracker"
     weather = "weather"
     tcx = "tcx"
 
 
-class SyncProgress(BaseModel):
+class TaskSyncState(BaseModel):
+    task: str
+    value: int
+    total: int | None
+
+
+class SyncState(BaseModel):
     is_complete: bool = False
-    tasks: list[tuple[SyncTasks, float]] = Field(default=[])
+    tasks: list[TaskSyncState] = Field(default=[])
 
 
-_syncs_in_progress: dict[int, "SyncOperation"] = {}
-
-
-class SyncOperation:
-    def __init__(self, user_id: int, runtracker_email: str | None = None):
-        self.user_id, self.runtracker_email = user_id, runtracker_email
-        self.progress = SyncProgress()
+class WebProgress(ProgressProtocol):
+    def __init__(self):
+        self.state = SyncState()
         self._listeners: list[asyncio.Queue] = []
 
-        self.task = asyncio.create_task(self._run_sync())
+    def start_task(self, task: str, total: int | None) -> None:
+        self.state.tasks.append(TaskSyncState(task=task, value=0, total=total))
+        self._broadcast()
+
+    def advance(self, task: str) -> None:
+        next(t for t in self.state.tasks if t.task == task).value += 1
+        self._broadcast()
+
+    def set_complete(self) -> None:
+        self.state.is_complete = True
+        self._broadcast()
 
     def subscribe(self) -> asyncio.Queue:
         queue = asyncio.Queue()
-        queue.put_nowait(self.progress)
+        queue.put_nowait(self.state)
         self._listeners.append(queue)
         return queue
 
@@ -52,36 +66,42 @@ class SyncOperation:
 
     def _broadcast(self):
         for queue in self._listeners:
-            queue.put_nowait(self.progress)
+            queue.put_nowait(self.state)
+
+
+_syncs_in_progress: dict[int, "SyncOperation"] = {}
+
+
+class SyncOperation:
+    def __init__(self, user_id: int, runtracker_email: str | None = None):
+        self.user_id, self.runtracker_email = user_id, runtracker_email
+        self.progress = WebProgress()
+        self.task = asyncio.create_task(self._run_sync())
 
     async def _run_sync(self):
         try:
-            # with get_db() as db:
-            #     await asyncio.to_thread(sync_runs_function, db, self.user_id)
+            # await asyncio.to_thread(sync_runs_function, self.user_id)
 
-            self.progress.tasks.append((SyncTasks.runs, 0))
-            for step in range(1, 11):
+            self.progress.start_task(SyncTasks.runs.value, total=10)
+            for _ in range(1, 11):
                 await asyncio.sleep(1)
-                self.progress.tasks[-1][1] = step / 10.0
-                self._broadcast()
+                self.progress.advance(SyncTasks.runs.value)
 
         except Exception as e:
             e.add_note(f"userid={self.user_id}, email={self.runtracker_email}")
             raise
         finally:
             # Notify everyone we're complete
-            self.progress = SyncProgress(is_complete=True)
-            self._broadcast()
-
+            self.progress.set_complete()
             del _syncs_in_progress[self.user_id]
 
 
 # Returns the status of the current sync operation. If no sync
 # is in progress, resturns a completed SyncProgress.
-def sync_status(user_id: int) -> SyncProgress:
+def sync_status(user_id: int) -> SyncState:
     if user_id not in _syncs_in_progress:
-        return SyncProgress(is_complete=True)
-    return _syncs_in_progress[user_id].progress
+        return SyncState(is_complete=True)
+    return _syncs_in_progress[user_id].progress.state
 
 
 # Starts a sync, if one is not already in progress.
@@ -95,14 +115,14 @@ async def sync_start(user: User, include_runtracker: bool):
 
 # Returns the sync progress stream. If no sync is in progress, resturns
 # HTTP 409 Conflict.
-async def sync_stream(user_id: int) -> AsyncIterable[SyncProgress]:
+async def sync_stream(user_id: int) -> AsyncIterable[SyncState]:
     if user_id not in _syncs_in_progress:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="No sync in progress",
         )
     sync = _syncs_in_progress[user_id]
-    queue = sync.subscribe()
+    queue = sync.progress.subscribe()
 
     try:
         while True:
@@ -116,4 +136,4 @@ async def sync_stream(user_id: int) -> AsyncIterable[SyncProgress]:
         # Client closed connection
         pass
     finally:
-        sync.unsubscribe(queue)
+        sync.progress.unsubscribe(queue)

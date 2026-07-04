@@ -38,7 +38,7 @@ def _token_encode(subject: str, expiry_mins: int, key: str) -> str:
     return jwt.encode(
         {
             "sub": subject,
-            "exp": int((datetime.now(UTC) + timedelta(minutes=expiry_mins)).timestamp()),
+            "exp": (datetime.now(UTC) + timedelta(minutes=expiry_mins)).timestamp(),
         },
         key=key,
         algorithm=_JWT_ALGORITHM,
@@ -103,7 +103,7 @@ class UsedRefreshTokens:
 
         # If token is in blacklist, raise an exception
         if token in self._tokens:
-            raise JWTError("Refresh token invalid")
+            raise JWTError("Refresh token expired")
 
         # Otherwise, add it
         self._tokens[token] = expires

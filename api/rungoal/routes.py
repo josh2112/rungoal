@@ -8,7 +8,7 @@ from jose import JWTError
 from rungoal import auth, crud
 from rungoal.deps import DepDb, DepSettings, DepUser
 from rungoal.models import AccessToken, GoogleApiAuthCode, User, UserBase
-from rungoal.sync import SyncProgress, sync_start, sync_status, sync_stream
+from rungoal.sync import SyncState, sync_start, sync_status, sync_stream
 
 api = APIRouter(prefix="/api")
 
@@ -67,6 +67,7 @@ def refresh_token(
     user = crud.get_user_by_email(db, token.subject)
     if not user:
         raise JWTError("Refresh token invalid")
+
     return _set_tokens(user.email, response)
 
 
@@ -81,13 +82,13 @@ def get_user(user: DepUser) -> UserBase:
 
 
 @api.get("/sync/status")
-def get_sync_status(user: DepUser) -> SyncProgress:
+def get_sync_status(user: DepUser) -> SyncState:
     assert user.id is not None
     return sync_status(user.id)
 
 
 @api.get("/sync/stream", response_class=EventSourceResponse)
-async def get_sync_stream(user: DepUser) -> AsyncIterable[SyncProgress]:
+async def get_sync_stream(user: DepUser) -> AsyncIterable[SyncState]:
     assert user.id is not None
     async for p in sync_stream(user.id):
         yield p
