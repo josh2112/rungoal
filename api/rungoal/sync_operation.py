@@ -97,8 +97,13 @@ class SyncOperation:
                 sync_runs(
                     client,
                     self.progress,
-                    runtracker_db_path=Path(settings.RUNTRACKER_DB),
+                    runtracker_db_path=Path(settings.RUNTRACKER_DB)
+                    if not user.is_onboarded
+                    else None,
                 )
+                if not user.is_onboarded:
+                    user.is_onboarded = True
+                    db.commit()
 
     async def _run_sync(self):
         try:

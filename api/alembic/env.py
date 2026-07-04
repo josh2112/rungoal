@@ -1,9 +1,10 @@
 from logging.config import fileConfig
 
 from alembic import context
-from rungoal.models import *  # noqa: F403  # Import all the models
 from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel  # Import SQLModel to use its metadata field
+
+from rungoal import models  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -64,7 +65,13 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        # Added render_as_batch=True to support SQLite migrations
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            render_as_batch=True,
+            compare_server_default=True,
+        )
 
         with context.begin_transaction():
             context.run_migrations()

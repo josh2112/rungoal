@@ -1,8 +1,11 @@
 from datetime import UTC, date, datetime
 from enum import StrEnum
 
+import sqlalchemy as sa
 from pydantic import BaseModel, ConfigDict, EmailStr, model_validator
-from sqlalchemy import Column, DateTime, Unicode, UniqueConstraint, types
+
+# from sqlalchemy import Column, DateTime, Unicode, UniqueConstraint, types
+# from sqlalchemy import false as sa_false
 from sqlalchemy_utils import EncryptedType
 from sqlalchemy_utils.types.encrypted.encrypted_type import AesEngine
 from sqlmodel import AutoString, Field, Relationship, SQLModel
@@ -11,13 +14,13 @@ from sqlmodel import Enum as SQLEnum
 from rungoal.settings import settings
 
 
-class UTCDateTime(types.TypeDecorator):
+class UTCDateTime(sa.types.TypeDecorator):
     """
     A custom SQLAlchemy type that ensures datetime objects
     are timezone-aware (UTC) upon retrieval.
     """
 
-    impl = DateTime
+    impl = sa.DateTime
     cache_ok = True
 
     def process_result_value(self, value, dialect):  # noqa: ARG002
@@ -49,8 +52,8 @@ class UserBase(SQLModel):
 class UserWithGoogleCreds(UserBase):
     google_api_access_token: str
     google_api_refresh_token: str = Field(
-        sa_column=Column(
-            EncryptedType(Unicode, settings.GOOGLE_REFRESH_TOKEN_KEY, AesEngine, "pkcs5")
+        sa_column=sa.Column(
+            EncryptedType(sa.Unicode, settings.GOOGLE_REFRESH_TOKEN_KEY, AesEngine, "pkcs5")
         )
     )
 
@@ -59,6 +62,9 @@ class User(UserWithGoogleCreds, table=True):
     id: int | None = Field(default=None, primary_key=True)
     runs: list["Run"] = Relationship(back_populates="user", cascade_delete=True)
     goals: list["Goal"] = Relationship(back_populates="user", cascade_delete=True)
+    is_onboarded: bool = Field(
+        default=False, sa_column=sa.Column(sa.Boolean(), server_default=sa.false())
+    )
 
 
 class RunDataSource(StrEnum):
@@ -75,16 +81,16 @@ class Run(SQLModel, table=True):
 
     # Used to sync runs... if we see an existing data_source_id with a later
     # update time, replace it
-    update_time: datetime = Field(sa_column=Column(UTCDateTime(timezone=True)))
+    update_time: datetime = Field(sa_column=sa.Column(UTCDateTime(timezone=True)))
 
     user_id: int | None = Field(default=None, foreign_key="user.id", ondelete="CASCADE")
     user: User | None = Relationship(back_populates="runs")
 
-    data_source: RunDataSource = Field(sa_column=Column(SQLEnum(RunDataSource), nullable=False))
+    data_source: RunDataSource = Field(sa_column=sa.Column(SQLEnum(RunDataSource), nullable=False))
     data_source_id: str
 
-    start_time: datetime = Field(sa_column=Column(UTCDateTime(timezone=True)))
-    end_time: datetime = Field(sa_column=Column(UTCDateTime(timezone=True)))
+    start_time: datetime = Field(sa_column=sa.Column(UTCDateTime(timezone=True)))
+    end_time: datetime = Field(sa_column=sa.Column(UTCDateTime(timezone=True)))
     calories: int | None
     distance_millimeters: int
     average_pace_seconds_per_meter: float
@@ -100,7 +106,7 @@ class Run(SQLModel, table=True):
     track_points: list["TrackPoint"] = Relationship(back_populates="run", cascade_delete=True)
     weather: "Weather" = Relationship(back_populates="run", cascade_delete=True)
 
-    __table_args__ = (UniqueConstraint(*run_unique_constriant_columns, name="run_unique"),)
+    __table_args__ = (sa.UniqueConstraint(*run_unique_constriant_columns, name="run_unique"),)
 
 
 class WeatherBase(SQLModel):
