@@ -64,7 +64,7 @@ class GoogleHealthClient(httpx.Client):
         kwargs.setdefault("base_url", "https://health.googleapis.com/v4/users/me/")
         kwargs["auth"] = _GoogleApiAuth(user, db)
         kwargs.setdefault("headers", {"Accept": "application/json"})
-        kwargs.setdefault("transport", httpx.HTTPTransport(retries=3))
+        kwargs.setdefault("transport", httpx.HTTPTransport(retries=10))
         super().__init__(*args, **kwargs)
 
     def fetch_runs(self, range_: TimeRange) -> list[Run]:

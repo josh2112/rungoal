@@ -47,7 +47,7 @@ onMounted(async () => {
     <div v-else>
         <div v-for="task in syncState.tasks" :key="task.task">
             <span>{{ task.task }}</span>
-            <progress :value="task.value" :max="task.total ?? undefined" />
+            <progress :value="task.total != null ? task.value : undefined" :max="task.total ?? undefined" />
         </div>
     </div>
 </template>
