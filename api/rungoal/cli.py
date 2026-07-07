@@ -6,7 +6,7 @@ from typing import Annotated
 
 import typer
 from rich.progress import Progress as RichProgress
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from rungoal.crud import get_user
 from rungoal.database import get_engine
@@ -14,7 +14,9 @@ from rungoal.google import GoogleHealthClient
 from rungoal.models import (
     Run,
     RunFetchContext,
+    TrackPoint,
     User,
+    Weather,
 )
 from rungoal.sync import sync_runs, sync_runtracker, sync_tcx, sync_wx
 from rungoal.utils import ProgressProtocol
@@ -97,6 +99,7 @@ def cmd_sync_runtracker(
 def cmd_sync_tcx(user_id: int, from_: datetime, to: datetime | None = None):
     with get_db() as db, CliProgress() as progress:
         user = get_user(db, user_id)
+        # Select runs for this user and timespan for which we don't already have trackpoints
         sql = (
             select(Run)
             .where(Run.user_id == user.id)
@@ -104,7 +107,7 @@ def cmd_sync_tcx(user_id: int, from_: datetime, to: datetime | None = None):
         )
         if to:
             sql = sql.where(Run.end_time <= to.replace(tzinfo=UTC))
-        runs = db.exec(sql).all()
+        runs = db.exec(sql.where(col(Run.id).notin_(select(TrackPoint.run_id)))).all()
         with GoogleHealthClient(user, db) as client:
             sync_tcx(client, progress, list(RunFetchContext.model_validate(r) for r in runs))
 
@@ -113,6 +116,7 @@ def cmd_sync_tcx(user_id: int, from_: datetime, to: datetime | None = None):
 def cmd_sync_weather(user_id: int, from_: datetime, to: datetime | None = None):
     with get_db() as db, CliProgress() as progress:
         user = get_user(db, user_id)
+        # Select runs for this user and timespan for which we don't already have weather
         sql = (
             select(Run)
             .where(Run.user_id == user.id)
@@ -120,7 +124,7 @@ def cmd_sync_weather(user_id: int, from_: datetime, to: datetime | None = None):
         )
         if to:
             sql = sql.where(Run.end_time <= to.replace(tzinfo=UTC))
-        runs = db.exec(sql).all()
+        runs = db.exec(sql.where(col(Run.id).notin_(select(Weather.run_id)))).all()
         sync_wx(db, progress, list(RunFetchContext.model_validate(r) for r in runs))
 
 
