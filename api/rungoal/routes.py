@@ -1,9 +1,11 @@
 from collections.abc import AsyncIterable
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Cookie, HTTPException, Response, status
 from fastapi.sse import EventSourceResponse
 from jose import JWTError
+from pydantic import BaseModel, Field
 
 from rungoal import auth, crud
 from rungoal.deps import DepDb, DepSettings, DepUser
@@ -94,7 +96,13 @@ async def get_sync_stream(user: DepUser) -> AsyncIterable[SyncState]:
         yield p
 
 
+class SyncParams(BaseModel):
+    from_: datetime | None = Field(alias="from", default=None)
+    to: datetime | None = None
+    include_runtracker: bool = False
+
+
 @api.post("/sync")
-async def start_sync(user: DepUser, include_runtracker: bool = False):
-    await sync_start(user, include_runtracker)
+async def start_sync(user: DepUser, params: SyncParams):
+    await sync_start(user, params.from_, params.to, params.include_runtracker)
     return status.HTTP_202_ACCEPTED

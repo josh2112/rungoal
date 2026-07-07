@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 from collections.abc import AsyncIterable
+from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
 
@@ -14,7 +15,7 @@ from rungoal.google import GoogleHealthClient
 from rungoal.models import User
 from rungoal.settings import settings
 from rungoal.sync import sync_runs
-from rungoal.utils import ProgressProtocol
+from rungoal.utils import ProgressProtocol, TimeRange
 
 
 @contextlib.contextmanager
@@ -38,8 +39,10 @@ class TaskSyncState(BaseModel):
 
 
 class SyncState(BaseModel):
-    is_complete: bool = False
     tasks: list[TaskSyncState] = Field(default=[])
+    is_complete: bool = False
+    synced_from: datetime | None = None
+    synced_to: datetime | None = None
 
 
 class WebProgress(ProgressProtocol):
@@ -56,8 +59,11 @@ class WebProgress(ProgressProtocol):
         t.value += 1
         self._broadcast()
 
-    def set_complete(self) -> None:
+    def set_complete(self, span: TimeRange | None) -> None:
         self.state.is_complete = True
+        if span:
+            self.state.synced_from = span.start
+            self.state.synced_to = span.end
         self._broadcast()
 
     def subscribe(self) -> asyncio.Queue:
@@ -84,37 +90,51 @@ class WebProgress(ProgressProtocol):
 _syncs_in_progress: dict[int, "SyncOperation"] = {}
 
 
-class SyncOperation:
-    def __init__(self, user_id: int, runtracker_email: str | None = None):
-        self.user_id, self.runtracker_email = user_id, runtracker_email
-        self.progress = WebProgress()
-        asyncio.create_task(self._run_sync())
+class SyncParams(BaseModel):
+    user_id: int
+    from_: datetime | None
+    to: datetime | None
+    include_runtracker: bool
 
-    def _run_sync_thread(self, user_id: int):
+
+class SyncOperation:
+    def __init__(self, params: SyncParams):
+        self.progress = WebProgress()
+        asyncio.create_task(self._run_sync(params))
+
+    def _run_sync_thread(
+        self,
+        params: SyncParams,
+    ) -> TimeRange:
         with get_db() as db:
-            user = get_user(db, user_id)
+            user = get_user(db, params.user_id)
             with GoogleHealthClient(user, db) as client:
-                sync_runs(
+                span = sync_runs(
                     client,
                     self.progress,
+                    from_=params.from_,
+                    to=params.to,
                     runtracker_db_path=Path(settings.RUNTRACKER_DB)
-                    if not user.is_onboarded
+                    if params.include_runtracker
                     else None,
                 )
+                # The first sync means onboarding is completed
                 if not user.is_onboarded:
                     user.is_onboarded = True
                     db.commit()
+                return span
 
-    async def _run_sync(self):
+    async def _run_sync(self, params: SyncParams):
+        span: TimeRange | None = None
         try:
-            await asyncio.to_thread(self._run_sync_thread, self.user_id)
+            span = await asyncio.to_thread(self._run_sync_thread, params)
         except Exception as e:
-            e.add_note(f"userid={self.user_id}, email={self.runtracker_email}")
+            e.add_note(f"userid={params.user_id}")
             raise
         finally:
             # Notify everyone we're complete
-            self.progress.set_complete()
-            del _syncs_in_progress[self.user_id]
+            self.progress.set_complete(span)
+            del _syncs_in_progress[params.user_id]
 
 
 # Returns the status of the current sync operation. If no sync
@@ -126,11 +146,18 @@ def sync_status(user_id: int) -> SyncState:
 
 
 # Starts a sync, if one is not already in progress.
-async def sync_start(user: User, include_runtracker: bool):
+async def sync_start(
+    user: User, from_: datetime | None, to: datetime | None, include_runtracker: bool
+):
     assert user.id is not None
     if user.id not in _syncs_in_progress:
         _syncs_in_progress[user.id] = SyncOperation(
-            user.id, user.email if include_runtracker else None
+            SyncParams(
+                user_id=user.id,
+                from_=from_,
+                to=to,
+                include_runtracker=include_runtracker,
+            )
         )
 
 

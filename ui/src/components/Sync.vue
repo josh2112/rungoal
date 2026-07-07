@@ -9,7 +9,7 @@ const api = useApi();
 const session = useSession();
 
 async function startSync() {
-    await session.startSync();
+    await session.startSync(undefined, undefined, false)
     streamEvents();
 }
 
@@ -20,10 +20,12 @@ function streamEvents() {
         },
         onmessage(msg) {
             syncState.value = JSON.parse(msg.data);
+            if (syncState.value?.synced_from) {
+                console.log(`Sync complete: ${syncState.value?.synced_from} -> ${syncState.value?.synced_to}`)
+            }
         },
         onerror(err) {
             console.error("SSE Error:", err);
-            throw err;
         },
         onclose() {
             syncState.value = undefined;

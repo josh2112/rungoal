@@ -30,6 +30,9 @@ class TimeRange:
             nxt += duration
         yield TimeRange(cur, end=self.end)
 
+    def __str__(self) -> str:
+        return f"{self.start} -> {self.end}"
+
 
 def block_overlap(values: list, start: float, end: float):
     if all(v is None for v in values):

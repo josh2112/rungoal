@@ -51,7 +51,7 @@ def sync_runs(
     runtracker_db_path: Annotated[Path, typer.Argument(dir_okay=False, exists=True)] | None = None,
     tcx: bool = True,
     wx: bool = True,
-):
+) -> TimeRange:
     task1 = "Finding oldest runs..."
     task2 = "Downloading runs..."
 
@@ -103,6 +103,8 @@ def sync_runs(
         sync_wx(client.db, progress, updated_runs)
     if runtracker_db_path:
         sync_runtracker(client, progress, runtracker_db_path)
+
+    return span
 
 
 # Syncs the given run list against existing runs over a timespan.

@@ -1,17 +1,16 @@
 ## TODO
 
-Think about flow how does sync and downloading runs (locally) work?
- 1 Sync, then ask for all runs?
- 2 Ask for all runs, then sync, and sync returns any new runs at the end?
-
-Not 2. It would be more responsive (we have some runs right away), but sync should not return runs.
-How about this:
- 1) Get baseline (runs for past 2 weeks maybe)
- 2) Sync
- 3) When sync is complete, ask for any runs matching sync parameters (by default, date since last run)
- That way sync works with different time periods. Say you edited a month-old run in Fitbit. You could then have the
- backend sync the time period around that run, then ask for the runs in that time period.
- Leads to this: sync should have same parameters as fetch: a 'from' and optional 'to'.
+Flow:
+After login and /user/me:
+ - If not is_onboarded:
+   - Little dialog asking if user wants to sync runtracker, then do a sync with that as a param
+ - Otherwise:
+   - Grab runs from past 2 weeks
+   - Sync with no params
+ 
+ Every time sync is done:
+   - if we have runs: ask for any runs matching returned sync span
+   - if not, just get past 2 weeks
 
 Paging:
   Start with 2 weeks of run data (plus whatever we sync). When hit bottom, ask for previous 2 weeks.

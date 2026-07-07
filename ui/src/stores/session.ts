@@ -35,8 +35,12 @@ export const useSession = defineStore("session", () => {
         return (await api.get("/sync/status")).data as SyncState;
     }
 
-    async function startSync() {
-        await api.post("/sync");
+    async function startSync(from?: Date, to?: Date, include_runtracker: boolean = false) {
+        await api.post("/sync", {
+            from: from?.toISOString(),
+            to: to?.toISOString(),
+            include_runtracker
+        });
     }
 
     return { user, logIn, logOut, getSyncStatus, startSync };

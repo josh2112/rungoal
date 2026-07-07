@@ -17,4 +17,6 @@ export interface SyncState {
         value: number;
         total: number | null;
     }[];
+    synced_from?: Date
+    synced_to?: Date
 }
