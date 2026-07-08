@@ -1,9 +1,10 @@
-from typing import Any
+from datetime import datetime
+from typing import Any, Sequence
 
 from sqlmodel import Session, select
 
 from rungoal.errors import RecordNotFoundError
-from rungoal.models import User, UserWithGoogleCreds
+from rungoal.models import Run, User, UserWithGoogleCreds
 
 
 def _add_record(db: Session, record: Any) -> Any:
@@ -29,3 +30,12 @@ def get_user_by_email(db: Session, email: str) -> User | None:
 def create_user(db: Session, user: UserWithGoogleCreds) -> User:
     # Make a User out of this so we can get the ID
     return _add_record(db, User(**user.model_dump()))
+
+
+def get_runs(db: Session, user_id: int, from_: datetime, to: datetime) -> Sequence[Run]:
+    return db.exec(
+        select(Run)
+        .where(Run.user_id == user_id)
+        .where(Run.start_time >= from_)
+        .where(Run.start_time <= to)
+    ).all()

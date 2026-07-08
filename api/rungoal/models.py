@@ -3,9 +3,6 @@ from enum import StrEnum
 
 import sqlalchemy as sa
 from pydantic import BaseModel, ConfigDict, EmailStr, model_validator
-
-# from sqlalchemy import Column, DateTime, Unicode, UniqueConstraint, types
-# from sqlalchemy import false as sa_false
 from sqlalchemy_utils import EncryptedType
 from sqlalchemy_utils.types.encrypted.encrypted_type import AesEngine
 from sqlmodel import AutoString, Field, Relationship, SQLModel
@@ -43,13 +40,16 @@ class AccessToken(BaseModel):
 # ========= DB ========
 
 
-class UserBase(SQLModel):
+class UserResponse(SQLModel):
     name: str
     email: EmailStr = Field(index=True, unique=True, sa_type=AutoString)
     avatar_uri: str
+    is_onboarded: bool = Field(
+        default=False, sa_column=sa.Column(sa.Boolean(), server_default=sa.false())
+    )
 
 
-class UserWithGoogleCreds(UserBase):
+class UserWithGoogleCreds(UserResponse):
     google_api_access_token: str
     google_api_refresh_token: str = Field(
         sa_column=sa.Column(
@@ -62,9 +62,6 @@ class User(UserWithGoogleCreds, table=True):
     id: int | None = Field(default=None, primary_key=True)
     runs: list["Run"] = Relationship(back_populates="user", cascade_delete=True)
     goals: list["Goal"] = Relationship(back_populates="user", cascade_delete=True)
-    is_onboarded: bool = Field(
-        default=False, sa_column=sa.Column(sa.Boolean(), server_default=sa.false())
-    )
 
 
 class RunDataSource(StrEnum):
@@ -76,9 +73,19 @@ class RunDataSource(StrEnum):
 run_unique_constriant_columns = ("user_id", "data_source", "data_source_id")
 
 
-class Run(SQLModel, table=True):
+class RunResponse(SQLModel):
     id: int | None = Field(default=None, primary_key=True)
 
+    start_time: datetime = Field(sa_column=sa.Column(UTCDateTime(timezone=True)))
+    end_time: datetime = Field(sa_column=sa.Column(UTCDateTime(timezone=True)))
+    calories: int | None
+    distance_millimeters: int
+    average_pace_seconds_per_meter: float
+
+    weather: "Weather" = Relationship(back_populates="run", cascade_delete=True)
+
+
+class Run(RunResponse, table=True):
     # Used to sync runs... if we see an existing data_source_id with a later
     # update time, replace it
     update_time: datetime = Field(sa_column=sa.Column(UTCDateTime(timezone=True)))
@@ -89,11 +96,6 @@ class Run(SQLModel, table=True):
     data_source: RunDataSource = Field(sa_column=sa.Column(SQLEnum(RunDataSource), nullable=False))
     data_source_id: str
 
-    start_time: datetime = Field(sa_column=sa.Column(UTCDateTime(timezone=True)))
-    end_time: datetime = Field(sa_column=sa.Column(UTCDateTime(timezone=True)))
-    calories: int | None
-    distance_millimeters: int
-    average_pace_seconds_per_meter: float
     steps: int | None
     elevation_gain_millimeters: int | None
     active_duration: float

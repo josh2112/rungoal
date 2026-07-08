@@ -40,7 +40,7 @@ class TaskSyncState(BaseModel):
 
 class SyncState(BaseModel):
     tasks: list[TaskSyncState] = Field(default=[])
-    is_complete: bool = False
+    is_syncing: bool = True
     synced_from: datetime | None = None
     synced_to: datetime | None = None
 
@@ -59,11 +59,10 @@ class WebProgress(ProgressProtocol):
         t.value += 1
         self._broadcast()
 
-    def set_complete(self, span: TimeRange | None) -> None:
-        self.state.is_complete = True
-        if span:
-            self.state.synced_from = span.start
-            self.state.synced_to = span.end
+    def set_complete(self, span: TimeRange) -> None:
+        self.state.is_syncing = False
+        self.state.synced_from = span.start
+        self.state.synced_to = span.end
         self._broadcast()
 
     def subscribe(self) -> asyncio.Queue:
@@ -125,15 +124,14 @@ class SyncOperation:
                 return span
 
     async def _run_sync(self, params: SyncParams):
-        span: TimeRange | None = None
         try:
             span = await asyncio.to_thread(self._run_sync_thread, params)
+            self.progress.set_complete(span)
         except Exception as e:
             e.add_note(f"userid={params.user_id}")
             raise
         finally:
             # Notify everyone we're complete
-            self.progress.set_complete(span)
             del _syncs_in_progress[params.user_id]
 
 
@@ -141,7 +139,7 @@ class SyncOperation:
 # is in progress, returns a completed SyncProgress.
 def sync_status(user_id: int) -> SyncState:
     if user_id not in _syncs_in_progress:
-        return SyncState(is_complete=True)
+        return SyncState(is_syncing=False)
     return _syncs_in_progress[user_id].progress.state
 
 
@@ -177,7 +175,7 @@ async def sync_stream(user_id: int) -> AsyncIterable[SyncState]:
             progress = await queue.get()
             yield progress
 
-            if progress.is_complete:
+            if not progress.is_syncing:
                 break
 
     except asyncio.CancelledError:

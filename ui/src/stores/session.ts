@@ -1,12 +1,16 @@
+import { fetchEventSource } from "@microsoft/fetch-event-source";
 import { defineStore } from "pinia";
 import { onMounted, ref } from "vue";
-import type { SyncState, User } from "../models";
+import type { Run, SyncState, User } from "../models";
 import { useApi } from "./api";
 
 export const useSession = defineStore("session", () => {
     const api = useApi();
 
-    const user = ref<User | null>(null);
+    const user = ref<User>();
+    const syncState = ref<SyncState>();
+
+    const runs = ref<Run[]>([]);
 
     onMounted(async () => {
         await getMe();
@@ -24,15 +28,21 @@ export const useSession = defineStore("session", () => {
     function logOut() {
         api.get("/auth/logout");
         api.accessToken = null;
-        user.value = null;
+        syncState.value = undefined;
+        runs.value = [];
+        user.value = undefined;
     }
 
     async function getMe() {
         user.value = (await api.get("/user/me")).data;
+        updateSyncState();
     }
 
-    async function getSyncStatus(): Promise<SyncState> {
-        return (await api.get("/sync/status")).data as SyncState;
+    async function updateSyncState() {
+        syncState.value = (await api.get("/sync/status")).data as SyncState;
+        if (syncState.value.is_syncing) {
+            streamSyncEvents();
+        }
     }
 
     async function startSync(from?: Date, to?: Date, include_runtracker: boolean = false) {
@@ -41,7 +51,51 @@ export const useSession = defineStore("session", () => {
             to: to?.toISOString(),
             include_runtracker
         });
+        streamSyncEvents();
     }
 
-    return { user, logIn, logOut, getSyncStatus, startSync };
+    function streamSyncEvents() {
+        fetchEventSource(api.syncEventStreamUrl, {
+            headers: {
+                Authorization: `Bearer ${api.accessToken}`,
+            },
+            onmessage(msg) {
+                syncState.value = JSON.parse(msg.data);
+                if (!syncState.value!.is_syncing) {
+                    console.log(`Sync complete: ${syncState.value?.synced_from} -> ${syncState.value?.synced_to}`)
+
+                }
+            },
+            onerror(err) {
+                console.error("Error in sync event source:", err);
+            }
+        });
+    }
+
+    async function getRuns(from: Date, to: Date) {
+        let newRuns = (await api.get("/runs", {
+            params: {
+                from: from?.toISOString(),
+                to: to?.toISOString(),
+            }
+        })).data as Run[];
+
+        // Lump all runs rogether and remove dupes
+        const dates = new Set<Date>();
+        newRuns = newRuns.concat(runs.value).filter(r => {
+            if (dates.has(r.start_time)) {
+                return false;
+            }
+            dates.add(r.start_time);
+            return true;
+        });
+
+        newRuns.sort((a: Run, b: Run) => {
+            return b.start_time.getTime() - a.start_time.getTime()
+        });
+
+        runs.value = newRuns;
+    }
+
+    return { user, runs, logIn, logOut, startSync, syncState, getRuns };
 });

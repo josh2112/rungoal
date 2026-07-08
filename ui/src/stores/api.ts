@@ -3,9 +3,12 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import type { ErrorResponse } from "../models";
 
+
+const _baseUrl = `${import.meta.env.BASE_URL}/api`
+
 export const useApi = defineStore("api", () => {
     const api = axios.create({
-        baseURL: `${import.meta.env.BASE_URL}/api`,
+        baseURL: _baseUrl,
         withCredentials: true,
         headers: {
             post: {
@@ -111,5 +114,7 @@ export const useApi = defineStore("api", () => {
         },
     );
 
-    return { get: api.get, post: api.post, accessToken, errors };
+    const syncEventStreamUrl = `${_baseUrl}/sync/stream`
+
+    return { get: api.get, post: api.post, accessToken, errors, syncEventStreamUrl };
 });

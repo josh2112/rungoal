@@ -1,15 +1,15 @@
 from collections.abc import AsyncIterable
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, cast
 
-from fastapi import APIRouter, Cookie, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, HTTPException, Query, Response, status
 from fastapi.sse import EventSourceResponse
 from jose import JWTError
 from pydantic import BaseModel, Field
 
 from rungoal import auth, crud
 from rungoal.deps import DepDb, DepSettings, DepUser
-from rungoal.models import AccessToken, GoogleApiAuthCode, User, UserBase
+from rungoal.models import AccessToken, GoogleApiAuthCode, RunResponse, User, UserResponse
 from rungoal.sync_operation import SyncState, sync_start, sync_status, sync_stream
 
 api = APIRouter(prefix="/api")
@@ -79,7 +79,7 @@ def logout(response: Response):
 
 
 @api.get("/user/me")
-def get_user(user: DepUser) -> UserBase:
+def get_user(user: DepUser) -> UserResponse:
     return user  # Will return only the fields in UserBase
 
 
@@ -106,3 +106,13 @@ class SyncParams(BaseModel):
 async def start_sync(user: DepUser, params: SyncParams):
     await sync_start(user, params.from_, params.to, params.include_runtracker)
     return status.HTTP_202_ACCEPTED
+
+
+@api.get("/runs")
+def get_runs(
+    db: DepDb,
+    user: DepUser,
+    from_: Annotated[datetime, Query(alias="from")],
+    to: datetime,
+) -> list[RunResponse]:
+    return list(crud.get_runs(db, cast(int, user.id), from_, to))
