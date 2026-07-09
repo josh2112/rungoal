@@ -1,4 +1,5 @@
 import { Temporal } from "temporal-polyfill";
+import type { DistanceUnit } from "./conversion";
 
 const parseUtcDateTime = (str: string): Temporal.ZonedDateTime => Temporal.Instant.from(str).toZonedDateTimeISO("UTC");
 
@@ -13,6 +14,10 @@ export interface User {
     email: string;
     avatar_uri: string;
     is_onboarded: boolean;
+}
+
+export interface Settings {
+    distance_unit: DistanceUnit
 }
 
 interface SyncStateDTO {
@@ -54,6 +59,7 @@ export const toGoal = (dto: GoalDTO): Goal => ({
     ...dto,
     start_date: Temporal.PlainDate.from(dto.start_date),
     end_date: Temporal.PlainDate.from(dto.end_date)
+    // TODO: Cclulate & 8insert stats here
 })
 
 export interface Weather {

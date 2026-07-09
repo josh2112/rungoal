@@ -2,7 +2,7 @@ import { fetchEventSource } from "@microsoft/fetch-event-source";
 import { defineStore } from "pinia";
 import { Temporal } from "temporal-polyfill";
 import { onMounted, ref } from "vue";
-import { toGoal, toRun, toSyncState, type Goal, type Run, type SyncState, type User } from "../models";
+import { toGoal, toRun, toSyncState, type Goal, type Run, type Settings, type SyncState, type User } from "../models";
 import { useApi } from "./api";
 
 const SYNC_DAYS = 28;
@@ -12,6 +12,7 @@ export const useSession = defineStore("session", () => {
     const api = useApi();
 
     const user = ref<User>();
+    const settings = ref<Settings>();
     const syncState = ref<SyncState>();
 
     const goals = ref<Goal[]>([]);
@@ -41,6 +42,8 @@ export const useSession = defineStore("session", () => {
     async function getMe() {
         user.value = (await api.get("/user/me")).data;
         await updateSyncState();
+
+        settings.value = { distance_unit: "miles" } as Settings; // TODO
 
         if (user.value?.is_onboarded === true) {
             goals.value = ((await api.get("/goals")).data as []).map(g => toGoal(g));
@@ -121,5 +124,5 @@ export const useSession = defineStore("session", () => {
         runs.value = newRuns;
     }
 
-    return { user, runs, goals, logIn, logOut, startSync, syncState, getRuns };
+    return { user, settings, runs, goals, logIn, logOut, startSync, syncState, getRuns };
 });
