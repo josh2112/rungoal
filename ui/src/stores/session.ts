@@ -1,8 +1,12 @@
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import { defineStore } from "pinia";
+import { Temporal } from "temporal-polyfill";
 import { onMounted, ref } from "vue";
-import type { Run, SyncState, User } from "../models";
+import { toGoal, toRun, toSyncState, type Goal, type Run, type SyncState, type User } from "../models";
 import { useApi } from "./api";
+
+const SYNC_DAYS = 28;
+const DEV_NO_AUTO_SYNC = true;
 
 export const useSession = defineStore("session", () => {
     const api = useApi();
@@ -10,6 +14,7 @@ export const useSession = defineStore("session", () => {
     const user = ref<User>();
     const syncState = ref<SyncState>();
 
+    const goals = ref<Goal[]>([]);
     const runs = ref<Run[]>([]);
 
     onMounted(async () => {
@@ -35,11 +40,24 @@ export const useSession = defineStore("session", () => {
 
     async function getMe() {
         user.value = (await api.get("/user/me")).data;
-        updateSyncState();
+        await updateSyncState();
+
+        if (user.value?.is_onboarded === true) {
+            goals.value = ((await api.get("/goals")).data as []).map(g => toGoal(g));
+
+            // If user is not onboarded yet, Account.vue will handle it. Otherwise, grab initial set of runs
+            const to = Temporal.Now.zonedDateTimeISO("UTC");
+            const from = to.subtract({ days: SYNC_DAYS });
+            await getRuns(from, to);
+
+            if (syncState.value?.is_syncing === false && (!import.meta.env.DEV || !DEV_NO_AUTO_SYNC)) {
+                startSync();
+            }
+        }
     }
 
     async function updateSyncState() {
-        syncState.value = (await api.get("/sync/status")).data as SyncState;
+        syncState.value = toSyncState((await api.get("/sync/status")).data);
         if (syncState.value.is_syncing) {
             streamSyncEvents();
         }
@@ -60,10 +78,19 @@ export const useSession = defineStore("session", () => {
                 Authorization: `Bearer ${api.accessToken}`,
             },
             onmessage(msg) {
-                syncState.value = JSON.parse(msg.data);
-                if (!syncState.value!.is_syncing) {
-                    console.log(`Sync complete: ${syncState.value?.synced_from} -> ${syncState.value?.synced_to}`)
+                const state = toSyncState(JSON.parse(msg.data));
+                syncState.value = state;
+                if (!state.is_syncing && state.synced_from && state.synced_to) {
+                    console.log(`Sync complete: ${state.synced_from} -> ${state.synced_to}`)
 
+                    // Auto-fetch the newly-synced runs (up to 4 weeks if this was a first-time sync).
+                    let from = Temporal.Instant.from(state.synced_from).toZonedDateTimeISO("UTC");
+                    const to = Temporal.Instant.from(state.synced_to).toZonedDateTimeISO("UTC");
+
+                    if (from.until(to).days > SYNC_DAYS) {
+                        from = to.subtract({ days: SYNC_DAYS });
+                    }
+                    getRuns(from, to);
                 }
             },
             onerror(err) {
@@ -72,16 +99,16 @@ export const useSession = defineStore("session", () => {
         });
     }
 
-    async function getRuns(from: Date, to: Date) {
-        let newRuns = (await api.get("/runs", {
+    async function getRuns(from: Temporal.ZonedDateTime, to: Temporal.ZonedDateTime) {
+        let newRuns = ((await api.get("/runs", {
             params: {
-                from: from?.toISOString(),
-                to: to?.toISOString(),
+                from: from.toString({ timeZoneName: 'never' }),
+                to: to.toString({ timeZoneName: 'never' }),
             }
-        })).data as Run[];
+        })).data as []).map(r => toRun(r));
 
         // Lump all runs rogether and remove dupes
-        const dates = new Set<Date>();
+        const dates = new Set<Temporal.ZonedDateTime>();
         newRuns = newRuns.concat(runs.value).filter(r => {
             if (dates.has(r.start_time)) {
                 return false;
@@ -90,12 +117,9 @@ export const useSession = defineStore("session", () => {
             return true;
         });
 
-        newRuns.sort((a: Run, b: Run) => {
-            return b.start_time.getTime() - a.start_time.getTime()
-        });
-
+        newRuns.sort((a: Run, b: Run) => Temporal.Instant.compare(b.start_time, a.start_time));
         runs.value = newRuns;
     }
 
-    return { user, runs, logIn, logOut, startSync, syncState, getRuns };
+    return { user, runs, goals, logIn, logOut, startSync, syncState, getRuns };
 });

@@ -10,13 +10,6 @@
             "request": "launch",
             "module": "fastapi",
             "args": ["dev"]
-        },
-        {
-            "name": "OpenMeteo",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "rungoal.cli",
-            "args": ["wx"]
         }
     ]
 }

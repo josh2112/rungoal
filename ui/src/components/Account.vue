@@ -40,13 +40,8 @@ const onboardingIncludeRuntracker = ref(true);
 onMounted(() => onboardingModal = new Modal(onboardingModalRef.value!));
 
 watch(() => session.user, (user, _) => {
-    if (user) {
-        if (!user.is_onboarded) {
-            onboardingModal?.show();
-        }
-        else {
-            // TODO: Grab initial set of runs (from the past 2 weeks), then sync (no params)
-        }
+    if (user && !user.is_onboarded) {
+        onboardingModal?.show();
     }
 });
 

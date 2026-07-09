@@ -1,5 +1,6 @@
 import "bootstrap";
 import { createPinia } from 'pinia';
+import 'temporal-polyfill/global';
 import { createApp } from "vue";
 import GoogleSignInPlugin from 'vue3-google-signin';
 import App from "./App.vue";

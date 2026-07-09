@@ -64,6 +64,25 @@ class User(UserWithGoogleCreds, table=True):
     goals: list["Goal"] = Relationship(back_populates="user", cascade_delete=True)
 
 
+class WeatherBase(SQLModel):
+    temp_c: float | None
+    apparent_temp_c: float | None
+    humidity_pct: float | None
+    rain_mm: float | None
+    cloud_cover_pct: float | None
+
+
+class WeatherResponse(WeatherBase):
+    pass
+
+
+class Weather(WeatherBase, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+
+    run_id: int | None = Field(default=None, foreign_key="run.id", ondelete="CASCADE")
+    run: "Run" = Relationship(back_populates="weather")
+
+
 class RunDataSource(StrEnum):
     GOOGLE_HEALTH = "googleHealth"
     RUNTRACKER = "runTracker"
@@ -73,19 +92,22 @@ class RunDataSource(StrEnum):
 run_unique_constriant_columns = ("user_id", "data_source", "data_source_id")
 
 
-class RunResponse(SQLModel):
-    id: int | None = Field(default=None, primary_key=True)
-
+class RunBase(SQLModel):
     start_time: datetime = Field(sa_column=sa.Column(UTCDateTime(timezone=True)))
     end_time: datetime = Field(sa_column=sa.Column(UTCDateTime(timezone=True)))
     calories: int | None
     distance_millimeters: int
     average_pace_seconds_per_meter: float
 
-    weather: "Weather" = Relationship(back_populates="run", cascade_delete=True)
+
+class RunResponse(RunBase):
+    id: int
+    weather: WeatherResponse | None = None
 
 
-class Run(RunResponse, table=True):
+class Run(RunBase, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+
     # Used to sync runs... if we see an existing data_source_id with a later
     # update time, replace it
     update_time: datetime = Field(sa_column=sa.Column(UTCDateTime(timezone=True)))
@@ -99,6 +121,7 @@ class Run(RunResponse, table=True):
     steps: int | None
     elevation_gain_millimeters: int | None
     active_duration: float
+
     avg_cadence_steps_per_minute: int | None
     avg_stride_length_millimeters: int | None
     avg_vertical_oscillation_millimeters: int | None
@@ -106,24 +129,9 @@ class Run(RunResponse, table=True):
     avg_ground_contact_time_duration: float | None
 
     track_points: list["TrackPoint"] = Relationship(back_populates="run", cascade_delete=True)
-    weather: "Weather" = Relationship(back_populates="run", cascade_delete=True)
+    weather: Weather | None = Relationship(back_populates="run", cascade_delete=True)
 
     __table_args__ = (sa.UniqueConstraint(*run_unique_constriant_columns, name="run_unique"),)
-
-
-class WeatherBase(SQLModel):
-    temp_c: float | None
-    apparent_temp_c: float | None
-    humidity_pct: float | None
-    rain_mm: float | None
-    cloud_cover_pct: float | None
-
-
-class Weather(WeatherBase, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-
-    run_id: int | None = Field(default=None, foreign_key="run.id", ondelete="CASCADE")
-    run: Run | None = Relationship(back_populates="weather")
 
 
 class RunFetchContext(BaseModel):
@@ -152,13 +160,21 @@ class TrackPoint(SQLModel, table=True):
 class GoalCreate(SQLModel):
     start_date: date
     end_date: date
-    distance_meters: int = Field(gt=0)
+    distance_meters: float = Field(gt=0)
 
     @model_validator(mode="after")
     def validate_dates(self) -> "GoalCreate":
         if self.end_date <= self.start_date:
             raise ValueError("end date must be after start date")
         return self
+
+
+class GoalResponse(GoalCreate):
+    class Config:
+        from_attributes = True
+
+    id: int
+    current_distance_meters: float
 
 
 class Goal(GoalCreate, table=True):

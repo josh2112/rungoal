@@ -1,22 +1,22 @@
 ## TODO
 
+* Figure out why both runs from Monday, March 16 dont' show up!
+3.51 mile run and (manually added I think?) 2 mile run
+
 ### Flow
 
 After login and /user/me:
-
-- If not is_onboarded:
-    - Little dialog asking if user wants to sync runtracker, then do a sync with that as a param
-- Otherwise:
-    - Grab runs from past 4 weeks
-    - Sync with no params
+ - Check sync state, and start streaming sync events if in progress
+ - If not is onboarded, Account.vue will handle onboarding
+ - Else:
+    - Get initial set of runs (past 4 weeks)
+    - If no sync is in progress, start one.
 
 Every time sync is done:
 
 - if we have runs: ask for any runs matching returned sync span
 - if not, just get past 4 weeks
 
-Paging:
-Start with 4 weeks of run data (plus whatever we sync). When hit bottom, ask for previous 4 weeks.
 
 * No auto-sync in dev mode!
 

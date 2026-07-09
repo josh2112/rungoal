@@ -9,7 +9,16 @@ from pydantic import BaseModel, Field
 
 from rungoal import auth, crud
 from rungoal.deps import DepDb, DepSettings, DepUser
-from rungoal.models import AccessToken, GoogleApiAuthCode, RunResponse, User, UserResponse
+from rungoal.models import (
+    AccessToken,
+    Goal,
+    GoalResponse,
+    GoogleApiAuthCode,
+    Run,
+    RunResponse,
+    User,
+    UserResponse,
+)
 from rungoal.sync_operation import SyncState, sync_start, sync_status, sync_stream
 
 api = APIRouter(prefix="/api")
@@ -78,9 +87,9 @@ def logout(response: Response):
     response.delete_cookie(key="refresh_token", httponly=True, secure=True, samesite="lax")
 
 
-@api.get("/user/me")
-def get_user(user: DepUser) -> UserResponse:
-    return user  # Will return only the fields in UserBase
+@api.get("/user/me", response_model=UserResponse)
+def get_user(user: DepUser):
+    return user
 
 
 @api.get("/sync/status")
@@ -108,11 +117,16 @@ async def start_sync(user: DepUser, params: SyncParams):
     return status.HTTP_202_ACCEPTED
 
 
-@api.get("/runs")
+@api.get("/goals")
+def get_goals(db: DepDb, user: DepUser) -> list[GoalResponse]:
+    return list(crud.get_goals(db, cast(int, user.id)))
+
+
+@api.get("/runs", response_model=list[RunResponse])
 def get_runs(
     db: DepDb,
     user: DepUser,
     from_: Annotated[datetime, Query(alias="from")],
     to: datetime,
-) -> list[RunResponse]:
+) -> list[Run]:
     return list(crud.get_runs(db, cast(int, user.id), from_, to))
