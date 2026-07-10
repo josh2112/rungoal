@@ -2,7 +2,9 @@ import { fetchEventSource } from "@microsoft/fetch-event-source";
 import { defineStore } from "pinia";
 import { Temporal } from "temporal-polyfill";
 import { onMounted, ref } from "vue";
-import { toGoal, toRun, toSyncState, type Goal, type Run, type Settings, type SyncState, type User } from "../models";
+import { toSyncState, type Settings, type SyncState, type User } from "../misc";
+import { toGoal, type Goal } from "../models/goal";
+import { toRun, type Run } from "../models/run";
 import { useApi } from "./api";
 
 const SYNC_DAYS = 28;

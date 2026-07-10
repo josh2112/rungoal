@@ -1,4 +1,17 @@
+import { Temporal } from "temporal-polyfill";
+
+import { DurationFormat } from '@formatjs/intl-durationformat';
+
 export const currentLocale = new Intl.DateTimeFormat().resolvedOptions().locale;
+
+export const parseUtcDateTime = (str: string): Temporal.ZonedDateTime => Temporal.Instant.from(str).toZonedDateTimeISO("UTC");
+
+export const durationFormatter = new DurationFormat("en", {
+    style: "digital",
+    hours: "2-digit",
+    minutes: "2-digit",
+    seconds: "2-digit"
+});
 
 export function formatDec(num: number, maxDecimals: number): string {
     return num.toLocaleString('en-US', {
@@ -6,7 +19,6 @@ export function formatDec(num: number, maxDecimals: number): string {
         useGrouping: false
     });
 }
-
 
 const DistanceUnitData = {
     meters: {

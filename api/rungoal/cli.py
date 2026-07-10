@@ -1,6 +1,6 @@
 import contextlib
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated
 
@@ -19,7 +19,7 @@ from rungoal.models import (
     Weather,
 )
 from rungoal.sync import sync_runs, sync_runtracker, sync_tcx, sync_wx
-from rungoal.utils import ProgressProtocol
+from rungoal.utils import ProgressProtocol, TimeRange
 
 app = typer.Typer()
 
@@ -129,9 +129,9 @@ def cmd_sync_weather(user_id: int, from_: datetime, to: datetime | None = None):
 
 
 @app.command(
-    "init-db-test", help="Deletes and recreates the database, optionally recreating revision data."
+    "init-db", help="Deletes and recreates the database, optionally recreating revision data."
 )
-def cmd_init_db_test(regen: bool = False):
+def cmd_init_db(regen: bool = False):
     from alembic import command
     from alembic.config import Config
 
@@ -150,11 +150,6 @@ def cmd_init_db_test(regen: bool = False):
 
     # Create & upgrade the databse
     command.upgrade(alembic_config, "head")
-
-    # Import a test user
-    with get_db() as db, open("tmp/user.json") as f:
-        db.add(User.model_validate(json.load(f)))
-        db.commit()
 
 
 if __name__ == "__main__":

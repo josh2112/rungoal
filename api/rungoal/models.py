@@ -94,10 +94,10 @@ run_unique_constriant_columns = ("user_id", "data_source", "data_source_id")
 
 class RunBase(SQLModel):
     start_time: datetime = Field(sa_column=sa.Column(UTCDateTime(timezone=True)))
-    end_time: datetime = Field(sa_column=sa.Column(UTCDateTime(timezone=True)))
     calories: int | None
     distance_millimeters: int
     average_pace_seconds_per_meter: float
+    active_duration: float
 
 
 class RunResponse(RunBase):
@@ -107,6 +107,8 @@ class RunResponse(RunBase):
 
 class Run(RunBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
+
+    end_time: datetime = Field(sa_column=sa.Column(UTCDateTime(timezone=True)))
 
     # Used to sync runs... if we see an existing data_source_id with a later
     # update time, replace it
@@ -120,7 +122,6 @@ class Run(RunBase, table=True):
 
     steps: int | None
     elevation_gain_millimeters: int | None
-    active_duration: float
 
     avg_cadence_steps_per_minute: int | None
     avg_stride_length_millimeters: int | None

@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@formatjs/intl-durationformat": "^0.10.16",
     "@microsoft/fetch-event-source": "^2.0.1",
     "@popperjs/core": "^2.11.8",
     "@vueuse/core": "^14.3.0",
@@ -26,7 +27,7 @@
     "@vitejs/plugin-vue": "^6.0.6",
     "@vue/tsconfig": "^0.9.1",
     "sass": "^1.101.0",
-    "typescript": "~6.0.2",
+    "typescript": "^7.0.2",
     "vite": "^8.0.12",
     "vue-tsc": "^3.2.8"
   }

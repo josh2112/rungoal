@@ -72,7 +72,7 @@ class GoogleHealthClient(httpx.Client):
         a = f'{field} >= "{range_.start.strftime(self.GOOGLE_DATETIME_FORMAT)}"'
         b = f'{field} < "{range_.end.strftime(self.GOOGLE_DATETIME_FORMAT)}"'
         response = self.get(
-            "dataTypes/exercise/dataPoints:reconcile",
+            "dataTypes/exercise/dataPoints",
             params={"filter": f"{a} AND {b}"},
         )
         response.raise_for_status()
@@ -131,7 +131,7 @@ class GoogleHealthClient(httpx.Client):
         return Run(
             user_id=self.user.id,
             data_source=RunDataSource.GOOGLE_HEALTH,
-            data_source_id=dp["dataPointName"].split("/")[-1],
+            data_source_id=dp["name"].split("/")[-1],
             start_time=datetime.fromisoformat(ex["interval"]["startTime"]),
             end_time=datetime.fromisoformat(ex["interval"]["endTime"]),
             update_time=datetime.fromisoformat(ex["updateTime"]),

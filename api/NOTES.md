@@ -1,6 +1,6 @@
 ## TODO
 
-* Figure out why both runs from Monday, March 16 dont' show up!
+* Figure out why both runs from Monday, March 16 don't show up!
 3.51 mile run and (manually added I think?) 2 mile run
 
 ### Flow

@@ -59,6 +59,12 @@ class WebProgress(ProgressProtocol):
         t.value += 1
         self._broadcast()
 
+    def complete_task(self, task: str) -> None:
+        t = next(t for t in self.state.tasks if t.task == task)
+        t.total = t.total if t.total else 1
+        t.value = t.total
+        self._broadcast()
+
     def set_complete(self, span: TimeRange) -> None:
         self.state.is_syncing = False
         self.state.synced_from = span.start

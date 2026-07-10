@@ -77,6 +77,7 @@ def sync_runs(
                     lower = mid
                 mid = TimeRange(lower.start + (upper.start - lower.start) / 2, duration=d)
                 progress.advance(task1)
+
             from_ = lower.start
 
     span = TimeRange(from_.replace(tzinfo=UTC), to.replace(tzinfo=UTC) if to else datetime.now(UTC))
