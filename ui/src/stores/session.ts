@@ -114,6 +114,9 @@ export const useSession = defineStore("session", () => {
     }
 
     async function getRuns(from: Temporal.ZonedDateTime, to: Temporal.ZonedDateTime) {
+        from = from.round({ smallestUnit: "second" });
+        to = to.round({ smallestUnit: "second" });
+
         console.log(`Fetching runs from ${from.toString()} to ${to.toString()}`);
         let newRuns = (
             (

@@ -11,15 +11,17 @@ const session = useSession();
 </script>
 
 <template>
-    <Account />
-    <Sync />
-    <div v-if="session.user">
-        <h2>Goals</h2>
-        <GoalsList />
-        <h2>Runs</h2>
-        <RunsList />
-    </div>
-    <div v-else>
-        <LoginButton />
+    <div class="container-sm">
+        <Account />
+        <Sync />
+        <div v-if="session.user">
+            <h2>Goals</h2>
+            <GoalsList />
+            <h2>Runs</h2>
+            <RunsList />
+        </div>
+        <div v-else>
+            <LoginButton />
+        </div>
     </div>
 </template>
