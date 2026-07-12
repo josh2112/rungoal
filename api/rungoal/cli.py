@@ -1,6 +1,5 @@
 import contextlib
-import json
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -15,32 +14,36 @@ from rungoal.models import (
     Run,
     RunFetchContext,
     TrackPoint,
-    User,
     Weather,
 )
 from rungoal.sync import sync_runs, sync_runtracker, sync_tcx, sync_wx
-from rungoal.utils import ProgressProtocol, TimeRange
+from rungoal.utils import ProgressProtocol
 
 app = typer.Typer()
 
 
 class CliProgress(ProgressProtocol):
     def __init__(self):
-        self.progress = RichProgress()
+        self.state = RichProgress()
 
     def start_task(self, task: str, total: float | None) -> None:
-        self.progress.add_task(task, total=total)
+        self.state.add_task(task, total=total)
 
     def advance(self, task: str) -> None:
-        t = next(t for t in self.progress.tasks if t.description == task)
-        self.progress.advance(t.id)
+        t = next(t for t in self.state.tasks if t.description == task)
+        self.state.advance(t.id)
+
+    def complete_task(self, task: str) -> None:
+        t = next(t for t in self.state.tasks if t.description == task)
+        t.total = t.total if t.total else 1
+        t.completed = t.total
 
     def __enter__(self):
-        self.progress.__enter__()
+        self.state.__enter__()
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.progress.__exit__(exc_type, exc_value, traceback)
+        self.state.__exit__(exc_type, exc_value, traceback)
 
 
 @contextlib.contextmanager

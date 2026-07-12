@@ -45,10 +45,10 @@ export const useSession = defineStore("session", () => {
         user.value = (await api.get("/user/me")).data;
         await updateSyncState();
 
-        settings.value = { distance_unit: "miles" } as Settings; // TODO
+        settings.value = { distance_unit: "miles" } as Settings; // TODO: distance unit from Google Health settings?
 
         if (user.value?.is_onboarded === true) {
-            goals.value = ((await api.get("/goals")).data as []).map(g => toGoal(g));
+            await getGoals();
 
             // If user is not onboarded yet, Account.vue will handle it. Otherwise, grab initial set of runs
             const to = Temporal.Now.zonedDateTimeISO("UTC");
@@ -72,21 +72,25 @@ export const useSession = defineStore("session", () => {
         await api.post("/sync", {
             from: from?.toISOString(),
             to: to?.toISOString(),
-            include_runtracker
+            include_runtracker,
         });
         streamSyncEvents();
     }
 
     function streamSyncEvents() {
+        const ctrl = new AbortController();
+
         fetchEventSource(api.syncEventStreamUrl, {
             headers: {
                 Authorization: `Bearer ${api.accessToken}`,
             },
-            onmessage(msg) {
+            signal: ctrl.signal,
+            async onmessage(msg) {
                 const state = toSyncState(JSON.parse(msg.data));
                 syncState.value = state;
                 if (!state.is_syncing && state.synced_from && state.synced_to) {
-                    console.log(`Sync complete: ${state.synced_from} -> ${state.synced_to}`)
+                    console.log(`Sync complete: ${state.synced_from} -> ${state.synced_to}`);
+                    ctrl.abort();
 
                     // Auto-fetch the newly-synced runs (up to 4 weeks if this was a first-time sync).
                     let from = Temporal.Instant.from(state.synced_from).toZonedDateTimeISO("UTC");
@@ -95,30 +99,40 @@ export const useSession = defineStore("session", () => {
                     if (from.until(to).days > SYNC_DAYS) {
                         from = to.subtract({ days: SYNC_DAYS });
                     }
+                    getGoals();
                     getRuns(from, to);
                 }
             },
             onerror(err) {
                 console.error("Error in sync event source:", err);
-            }
+            },
         });
     }
 
+    async function getGoals() {
+        goals.value = ((await api.get("/goals")).data as []).map((g) => toGoal(g));
+    }
+
     async function getRuns(from: Temporal.ZonedDateTime, to: Temporal.ZonedDateTime) {
-        let newRuns = ((await api.get("/runs", {
-            params: {
-                from: from.toString({ timeZoneName: 'never' }),
-                to: to.toString({ timeZoneName: 'never' }),
-            }
-        })).data as []).map(r => toRun(r));
+        console.log(`Fetching runs from ${from.toString()} to ${to.toString()}`);
+        let newRuns = (
+            (
+                await api.get("/runs", {
+                    params: {
+                        from: from.toString({ timeZoneName: "never" }),
+                        to: to.toString({ timeZoneName: "never" }),
+                    },
+                })
+            ).data as []
+        ).map((r) => toRun(r));
 
         // Lump all runs rogether and remove dupes
-        const dates = new Set<Temporal.ZonedDateTime>();
-        newRuns = newRuns.concat(runs.value).filter(r => {
-            if (dates.has(r.start_time)) {
+        const ids = new Set<number>();
+        newRuns = newRuns.concat(runs.value).filter((r) => {
+            if (ids.has(r.id)) {
                 return false;
             }
-            dates.add(r.start_time);
+            ids.add(r.id);
             return true;
         });
 
@@ -126,5 +140,15 @@ export const useSession = defineStore("session", () => {
         runs.value = newRuns;
     }
 
-    return { user, settings, runs, goals, logIn, logOut, startSync, syncState, getRuns };
+    return {
+        user,
+        settings,
+        runs,
+        goals,
+        logIn,
+        logOut,
+        startSync,
+        syncState,
+        getRuns,
+    };
 });

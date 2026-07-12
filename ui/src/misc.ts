@@ -15,7 +15,7 @@ export interface User {
 }
 
 export interface Settings {
-    distance_unit: DistanceUnit
+    distance_unit: DistanceUnit;
 }
 
 interface SyncStateDTO {
@@ -37,5 +37,5 @@ export interface SyncState extends Omit<SyncStateDTO, "synced_from" | "synced_to
 export const toSyncState = (dto: SyncStateDTO): SyncState => ({
     ...dto,
     synced_from: dto.synced_from ? parseUtcDateTime(dto.synced_from) : undefined,
-    synced_to: dto.synced_from ? parseUtcDateTime(dto.synced_from) : undefined,
-})
+    synced_to: dto.synced_to ? parseUtcDateTime(dto.synced_to) : undefined,
+});

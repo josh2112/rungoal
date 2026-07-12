@@ -1,17 +1,17 @@
+import asyncio
 from collections.abc import AsyncIterable
 from datetime import datetime
 from typing import Annotated, cast
 
-from fastapi import APIRouter, Cookie, HTTPException, Query, Response, status
+from fastapi import APIRouter, Cookie, Query, Response, status
 from fastapi.sse import EventSourceResponse
 from jose import JWTError
 from pydantic import BaseModel, Field
 
 from rungoal import auth, crud
-from rungoal.deps import DepDb, DepSettings, DepUser
+from rungoal.deps import DepDb, DepUser
 from rungoal.models import (
     AccessToken,
-    Goal,
     GoalResponse,
     GoogleApiAuthCode,
     Run,
@@ -56,15 +56,6 @@ def google_auth(auth_code: GoogleApiAuthCode, db: DepDb, response: Response) -> 
     return _set_tokens(user.email, response)
 
 
-@api.post("/auth/dev", tags=["Auth"])
-async def dev_login(db: DepDb, settings: DepSettings, response: Response) -> AccessToken:
-    # Returns the first user in the DB (dev only)
-    if not settings.DEV:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-    user = crud.get_user(db, 1)
-    return _set_tokens(user.email, response)
-
-
 @api.post("/auth/refresh", tags=["Auth"])
 def refresh_token(
     db: DepDb, response: Response, refresh_token: Annotated[str | None, Cookie()] = None
@@ -94,15 +85,14 @@ def get_user(user: DepUser):
 
 @api.get("/sync/status")
 def get_sync_status(user: DepUser) -> SyncState:
-    assert user.id is not None
-    return sync_status(user.id)
+    return sync_status(cast(int, user.id))
 
 
 @api.get("/sync/stream", response_class=EventSourceResponse)
 async def get_sync_stream(user: DepUser) -> AsyncIterable[SyncState]:
-    assert user.id is not None
-    async for p in sync_stream(user.id):
+    async for p in sync_stream(cast(int, user.id)):
         yield p
+    await asyncio.sleep(0.2)  # Give the sync-complete message a chance to be sent
 
 
 class SyncParams(BaseModel):
@@ -113,7 +103,7 @@ class SyncParams(BaseModel):
 
 @api.post("/sync")
 async def start_sync(user: DepUser, params: SyncParams):
-    await sync_start(user, params.from_, params.to, params.include_runtracker)
+    await sync_start(cast(int, user.id), params.from_, params.to, params.include_runtracker)
     return status.HTTP_202_ACCEPTED
 
 

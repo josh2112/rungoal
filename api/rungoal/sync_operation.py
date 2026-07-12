@@ -12,7 +12,6 @@ from sqlmodel import Session
 from rungoal.crud import get_user
 from rungoal.database import get_engine
 from rungoal.google import GoogleHealthClient
-from rungoal.models import User
 from rungoal.settings import settings
 from rungoal.sync import sync_runs
 from rungoal.utils import ProgressProtocol, TimeRange
@@ -48,6 +47,7 @@ class SyncState(BaseModel):
 class WebProgress(ProgressProtocol):
     def __init__(self):
         self.state = SyncState()
+        self.loop = asyncio.get_running_loop()
         self._listeners: list[asyncio.Queue] = []
 
     def start_task(self, task: str, total: int | None) -> None:
@@ -83,7 +83,7 @@ class WebProgress(ProgressProtocol):
 
     def _broadcast(self):
         for queue in self._listeners:
-            queue.put_nowait(self.state)
+            self.loop.call_soon_threadsafe(queue.put_nowait, self.state.model_copy(deep=True))
 
     def __enter__(self):
         return self
@@ -107,10 +107,7 @@ class SyncOperation:
         self.progress = WebProgress()
         asyncio.create_task(self._run_sync(params))
 
-    def _run_sync_thread(
-        self,
-        params: SyncParams,
-    ) -> TimeRange:
+    def _run_sync_thread(self, params: SyncParams):
         with get_db() as db:
             user = get_user(db, params.user_id)
             with GoogleHealthClient(user, db) as client:
@@ -119,6 +116,8 @@ class SyncOperation:
                     self.progress,
                     from_=params.from_,
                     to=params.to,
+                    tcx=False,
+                    wx=False,
                     runtracker_db_path=Path(settings.RUNTRACKER_DB)
                     if params.include_runtracker
                     else None,
@@ -127,16 +126,16 @@ class SyncOperation:
                 if not user.is_onboarded:
                     user.is_onboarded = True
                     db.commit()
-                return span
+                self.progress.set_complete(span)
 
     async def _run_sync(self, params: SyncParams):
         try:
-            span = await asyncio.to_thread(self._run_sync_thread, params)
-            self.progress.set_complete(span)
+            await asyncio.to_thread(self._run_sync_thread, params)
         except Exception as e:
             e.add_note(f"userid={params.user_id}")
             raise
         finally:
+            await asyncio.sleep(0.2)  # Give the sync-complete message a chance to be sent
             # Notify everyone we're complete
             del _syncs_in_progress[params.user_id]
 
@@ -151,17 +150,11 @@ def sync_status(user_id: int) -> SyncState:
 
 # Starts a sync, if one is not already in progress.
 async def sync_start(
-    user: User, from_: datetime | None, to: datetime | None, include_runtracker: bool
+    user_id: int, from_: datetime | None, to: datetime | None, include_runtracker: bool
 ):
-    assert user.id is not None
-    if user.id not in _syncs_in_progress:
-        _syncs_in_progress[user.id] = SyncOperation(
-            SyncParams(
-                user_id=user.id,
-                from_=from_,
-                to=to,
-                include_runtracker=include_runtracker,
-            )
+    if user_id not in _syncs_in_progress:
+        _syncs_in_progress[user_id] = SyncOperation(
+            SyncParams(user_id=user_id, from_=from_, to=to, include_runtracker=include_runtracker)
         )
 
 
@@ -182,10 +175,10 @@ async def sync_stream(user_id: int) -> AsyncIterable[SyncState]:
             yield progress
 
             if not progress.is_syncing:
-                break
+                while True:
+                    await asyncio.sleep(1)
 
     except asyncio.CancelledError:
-        # Client closed connection
         pass
     finally:
         sync.progress.unsubscribe(queue)

@@ -1,5 +1,12 @@
 import { Temporal } from "temporal-polyfill";
-import { currentLocale, distanceAbbr, distanceConvert, durationFormatter, parseUtcDateTime, type DistanceUnit } from "../utils";
+import {
+    currentLocale,
+    distanceAbbr,
+    distanceConvert,
+    durationFormatter,
+    parseUtcDateTime,
+    type DistanceUnit,
+} from "../utils";
 
 export interface Weather {
     temp_c: number | null;
@@ -19,7 +26,6 @@ interface RunDTO {
     weather: Weather;
 }
 
-
 export interface Run extends Omit<RunDTO, "start_time" | "active_duration"> {
     start_time: Temporal.ZonedDateTime;
     active_duration: Temporal.Duration;
@@ -31,26 +37,32 @@ export interface RunStats {
     dist_abbr: string;
     distance: number;
     duration_str: string;
+    pace_str: string;
 }
 
 export const toRun = (dto: RunDTO): Run => ({
     ...dto,
     start_time: parseUtcDateTime(dto.start_time)!,
-    active_duration: Temporal.Duration.from(`PT${dto.active_duration}S`).round({ largestUnit: 'hour' })
-})
+    active_duration: Temporal.Duration.from(`PT${dto.active_duration}S`).round({
+        largestUnit: "hour",
+    }),
+});
 
 export function toRunStats(run: Run, distUnit: DistanceUnit): RunStats {
-    //const today = Temporal.Now.plainDateISO();
-    //const daysTotal = goal.start_date.until(goal.end_date).days + 1;
-    //const daysRemaining = today.until(goal.end_date).days;
-
-    const distance = (v: number) => distanceConvert(v, "meters", distUnit);
+    // s/m -> m/s -> mi/s -> s/mi
+    const pace_per_min = Math.round(
+        1.0 / distanceConvert(1.0 / run.average_pace_seconds_per_meter, "meters", distUnit),
+    );
+    const pace = Temporal.Duration.from(`PT${pace_per_min}S`).round({
+        largestUnit: "minute",
+    });
 
     return {
         run: run,
         date_str: run.start_time.toLocaleString(currentLocale, { dateStyle: "full" }),
         dist_abbr: distanceAbbr(distUnit),
         distance: distanceConvert(run.distance_millimeters, "millimeters", distUnit),
-        duration_str: durationFormatter.format(run.active_duration)
-    }
-};
+        duration_str: durationFormatter.format(run.active_duration),
+        pace_str: durationFormatter.format(pace),
+    };
+}
