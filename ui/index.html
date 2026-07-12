@@ -1,6 +1,19 @@
 <!doctype html>
 <html lang="en" data-bs-theme="light">
     <head>
+        <script type="text/javascript">
+            (() => {
+                var saved = localStorage.getItem("rungoal.theme");
+                var os = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+                document.documentElement.setAttribute("data-bs-theme", saved || os);
+
+                matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+                    if (!localStorage.getItem("theme")) {
+                        document.documentElement.setAttribute("data-bs-theme", e.matches ? "dark" : "light");
+                    }
+                });
+            })();
+        </script>
         <meta charset="UTF-8" />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no" />
@@ -10,20 +23,4 @@
         <div id="app"></div>
         <script type="module" src="/src/main.ts"></script>
     </body>
-    <script type="text/javascript">
-        (() => {
-            "use strict";
-
-            const calculateTheme = () => {
-                const isSystemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-                document.documentElement.setAttribute("data-bs-theme", isSystemDark ? "dark" : "light");
-            };
-
-            calculateTheme();
-
-            window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
-                calculateTheme();
-            });
-        })();
-    </script>
 </html>
