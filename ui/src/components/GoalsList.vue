@@ -6,5 +6,7 @@ const session = useSession();
 </script>
 
 <template>
-    <GoalView v-for="goal in session.goals" :key="goal.id" :goal="goal" />
+    <div class="row gy-3">
+        <GoalView v-for="goal in session.goals" :key="goal.id" :goal="goal" />
+    </div>
 </template>

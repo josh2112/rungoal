@@ -5,5 +5,7 @@ const session = useSession();
 </script>
 
 <template>
-    <RunView v-for="run in session.runs" :key="run.id" :run="run" />
+    <div class="row gy-3">
+        <RunView v-for="run in session.runs" :key="run.id" :run="run" />
+    </div>
 </template>

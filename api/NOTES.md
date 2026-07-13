@@ -1,7 +1,10 @@
 ## TODO
 
-* Figure out why both runs from Monday, March 16 don't show up!
-3.51 mile run and (manually added I think?) 2 mile run
+ - Use bootstrap multiple progress bars example (https://getbootstrap.com/docs/5.3/components/progress/#multiple-bars) to show sync progress
+ - Make a "delete last run" CLI command so we can debug syncing
+ - We're missing a 5-mile run on July 8! Figure out why...
+
+
 
 ### Flow
 

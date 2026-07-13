@@ -3,7 +3,6 @@ from datetime import datetime
 from typing import Any, cast
 
 from sqlalchemy import func, text
-from sqlalchemy import select as sa_select
 from sqlmodel import Session, col, select
 
 from rungoal.errors import RecordNotFoundError
@@ -36,7 +35,6 @@ def create_user(db: Session, user: UserWithGoogleCreds) -> User:
 
 
 def get_goals(db: Session, user_id: int) -> list[GoalResponse]:
-
     # SQLite3's date fuctions take an offset as "+/- X.Y hours"
     assert (tz_offset := datetime.now().astimezone().utcoffset())
     tz_offset = f"{tz_offset.total_seconds() / 3600} hours"

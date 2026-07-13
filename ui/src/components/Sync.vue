@@ -8,8 +8,8 @@ const startSync = () => session.startSync(undefined, undefined, false);
 
 <template>
     <div v-if="session.syncState">
-        <button class="btn btn-primary" v-if="false == session.syncState.is_syncing" @click="() => startSync()">
-            Sync
+        <button class="btn sync-button btn-lg" v-if="false == session.syncState.is_syncing" @click="() => startSync()">
+            <i class="bi bi-arrow-repeat"></i>
         </button>
         <div v-else>
             <div v-for="task in session.syncState.tasks" :key="task.task">
@@ -19,3 +19,10 @@ const startSync = () => session.startSync(undefined, undefined, false);
         </div>
     </div>
 </template>
+
+<style scoped>
+.sync-button {
+    --bs-btn-padding-x: 1rem;
+    --bs-btn-padding-y: 0.1rem;
+}
+</style>

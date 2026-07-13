@@ -1,15 +1,19 @@
 @import "bootstrap/scss/functions";
 
-$body-bg: #f4fafa;
-$body-bg-subtle: #161d1d;
 $primary: #0d696d;
 
+$body-bg: #f4fafa;
 $body-bg-dark: #0e1415;
-$body-bg-subtle-dark: #eff5f5;
-$primary-dark: #83d4d9;
+$body-secondary-bg-dark: #222f30;
+$body-tertiary-bg-dark: #161d1d;
 
 @import "bootstrap/scss/variables";
 @import "bootstrap/scss/variables-dark";
 @import "bootstrap/scss/mixins";
 
 @import "bootstrap/scss/bootstrap";
+
+
+// Fix for Vite not recognizing Bootstrap icons (https://github.com/vitejs/vite/issues/11012)
+$bootstrap-icons-font-dir: "bootstrap-icons/font/fonts";
+@import "bootstrap-icons/font/bootstrap-icons";

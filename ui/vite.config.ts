@@ -1,12 +1,13 @@
 import vue from "@vitejs/plugin-vue";
 import { defineConfig } from "vite";
+import svgLoader from 'vite-svg-loader';
 
 const baseUrl = "/rungoal/";
 
 // https://vite.dev/config/
 export default defineConfig({
     base: baseUrl,
-    plugins: [vue()],
+    plugins: [vue(), svgLoader()],
     server: {
         proxy: {
             "^/.*/api/.*": {
