@@ -1,8 +1,8 @@
 """Initial DB
 
-Revision ID: d2caac0cc037
+Revision ID: c3a91968d3b2
 Revises: 
-Create Date: 2026-07-10 15:31:50.905052
+Create Date: 2026-07-14 16:17:20.408607
 
 """
 from typing import Sequence, Union
@@ -18,7 +18,7 @@ import rungoal.models
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'd2caac0cc037'
+revision: str = 'c3a91968d3b2'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -51,18 +51,19 @@ def upgrade() -> None:
     )
     op.create_table('run',
     sa.Column('start_time', rungoal.models.UTCDateTime(timezone=True), nullable=True),
-    sa.Column('end_time', rungoal.models.UTCDateTime(timezone=True), nullable=True),
+    sa.Column('utc_offset_seconds', sa.Integer(), nullable=False),
     sa.Column('calories', sa.Integer(), nullable=True),
     sa.Column('distance_millimeters', sa.Integer(), nullable=False),
     sa.Column('average_pace_seconds_per_meter', sa.Float(), nullable=False),
+    sa.Column('active_duration', sa.Float(), nullable=False),
     sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('end_time', rungoal.models.UTCDateTime(timezone=True), nullable=True),
     sa.Column('update_time', rungoal.models.UTCDateTime(timezone=True), nullable=True),
     sa.Column('user_id', sa.Integer(), nullable=True),
     sa.Column('data_source', sa.Enum('GOOGLE_HEALTH', 'RUNTRACKER', name='rundatasource'), nullable=False),
     sa.Column('data_source_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('steps', sa.Integer(), nullable=True),
     sa.Column('elevation_gain_millimeters', sa.Integer(), nullable=True),
-    sa.Column('active_duration', sa.Float(), nullable=False),
     sa.Column('avg_cadence_steps_per_minute', sa.Integer(), nullable=True),
     sa.Column('avg_stride_length_millimeters', sa.Integer(), nullable=True),
     sa.Column('avg_vertical_oscillation_millimeters', sa.Integer(), nullable=True),

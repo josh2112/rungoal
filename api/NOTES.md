@@ -1,11 +1,6 @@
 ## TODO
 
-- Use bootstrap multiple progress bars example (https://getbootstrap.com/docs/5.3/components/progress/#multiple-bars) to show sync progress
-- Make a "delete last run" CLI command so we can debug syncing
-- We're missing a 5-mile run on July 8! Figure out why...
-    - Something weird is happening with syncing. Starting from July 6, the July 8 run is synced, but then it is deleted when the July 13 run is synced?
-    - The lower bound of the Google Health sync is the start_time of the latest run... but somehow THAT run doesn't get returned in the results, so we delete it!
-    - Is this a difference between start_time and exercise.interval.civil_start_time?
+- Fix onboarding dialog showing up if you refresh while initial sync is in progress
 
 ### Flow
 

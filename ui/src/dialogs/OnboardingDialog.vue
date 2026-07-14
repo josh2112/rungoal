@@ -18,15 +18,6 @@ watch(() => dialogs.isOnboardingDialogOpen, (isOpen) => {
     else dialog?.hide();
 });
 
-// Open automatically on login if user is not onboarded
-watch(
-    () => session.user,
-    (user, _) => {
-        if (user && !user.is_onboarded) {
-            dialogs.isOnboardingDialogOpen = true;
-        }
-    },
-);
 
 const onboardingIncludeRuntracker = ref(true);
 

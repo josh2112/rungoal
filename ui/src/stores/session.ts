@@ -2,19 +2,24 @@ import { fetchEventSource } from "@microsoft/fetch-event-source";
 import { defineStore } from "pinia";
 import { Temporal } from "temporal-polyfill";
 import { onMounted, ref } from "vue";
-import { toSyncState, type Settings, type SyncState, type User } from "../misc";
+import { syncSizeInDays } from "../consts";
 import { toGoal, type Goal } from "../models/goal";
+import { toSyncState, type Settings, type SyncParams, type SyncState, type User } from "../models/misc";
 import { toRun, type Run } from "../models/run";
 import { useApi } from "./api";
+import { useDialogs } from "./dialogs";
 
-const SYNC_DAYS = 28;
+
 const DEV_NO_AUTO_SYNC = true;
 
+
 export const useSession = defineStore("session", () => {
+    const dialogs = useDialogs();
+
     const api = useApi();
 
     const user = ref<User>();
-    const settings = ref<Settings>();
+    const settings = ref<Settings>({ distance_unit: "miles" }); // TODO: distance unit from Google Health settings?
     const syncState = ref<SyncState>();
 
     const goals = ref<Goal[]>([]);
@@ -43,21 +48,22 @@ export const useSession = defineStore("session", () => {
 
     async function getMe() {
         user.value = (await api.get("/user/me")).data;
+
         await updateSyncState();
 
-        settings.value = { distance_unit: "miles" } as Settings; // TODO: distance unit from Google Health settings?
-
-        if (user.value?.is_onboarded === true) {
+        if (!user.value!.is_onboarded) {
+            // If user is not onboarded yet (and we're not doing the initial sync), start the onboarding process
+            if (!syncState.value?.is_syncing) {
+                dialogs.isOnboardingDialogOpen = true;
+            }
+        }
+        else {
             await getGoals();
-
-            // If user is not onboarded yet, Account.vue will handle it. Otherwise, grab initial set of runs
-            const to = Temporal.Now.zonedDateTimeISO("UTC");
-            const from = to.subtract({ days: SYNC_DAYS });
-            await getRuns(from, to);
 
             if (syncState.value?.is_syncing === false && (!import.meta.env.DEV || !DEV_NO_AUTO_SYNC)) {
                 startSync();
             }
+
         }
     }
 
@@ -69,11 +75,13 @@ export const useSession = defineStore("session", () => {
     }
 
     async function startSync(from?: Date, to?: Date, include_runtracker: boolean = false) {
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
         await api.post("/sync", {
             from: from?.toISOString(),
             to: to?.toISOString(),
-            include_runtracker,
-        });
+            runtracker_timezone: include_runtracker ? timezone : undefined
+        } as SyncParams);
         streamSyncEvents();
     }
 
@@ -96,8 +104,8 @@ export const useSession = defineStore("session", () => {
                     let from = Temporal.Instant.from(state.synced_from).toZonedDateTimeISO("UTC");
                     const to = Temporal.Instant.from(state.synced_to).toZonedDateTimeISO("UTC");
 
-                    if (from.until(to).days > SYNC_DAYS) {
-                        from = to.subtract({ days: SYNC_DAYS });
+                    if (from.until(to).days > syncSizeInDays) {
+                        from = to.subtract({ days: syncSizeInDays });
                     }
                     getGoals();
                     getRuns(from, to);
@@ -113,7 +121,7 @@ export const useSession = defineStore("session", () => {
         goals.value = ((await api.get("/goals")).data as []).map((g) => toGoal(g));
     }
 
-    async function getRuns(from: Temporal.ZonedDateTime, to: Temporal.ZonedDateTime) {
+    async function getRuns(from: Temporal.ZonedDateTime, to: Temporal.ZonedDateTime): Promise<boolean> {
         from = from.round({ smallestUnit: "second" });
         to = to.round({ smallestUnit: "second" });
 
@@ -129,6 +137,8 @@ export const useSession = defineStore("session", () => {
             ).data as []
         ).map((r) => toRun(r));
 
+        const gotRuns = newRuns.length > 0;
+
         // Lump all runs rogether and remove dupes
         const ids = new Set<number>();
         newRuns = newRuns.concat(runs.value).filter((r) => {
@@ -141,6 +151,16 @@ export const useSession = defineStore("session", () => {
 
         newRuns.sort((a: Run, b: Run) => Temporal.Instant.compare(b.start_time, a.start_time));
         runs.value = newRuns;
+
+        return gotRuns;
+    }
+
+    // Finds the oldest run and fetches [syncSizeInDays] days of runs before that. Returns true if any runs were
+    // fetched.
+    async function getPreviousRuns(): Promise<boolean> {
+        const toTimestamp = runs.value.length > 0 ?
+            runs.value.reduce((min, cur) => Temporal.ZonedDateTime.compare(cur.start_time, min.start_time) < 0 ? cur : min).start_time : Temporal.Now.zonedDateTimeISO("UTC");
+        return await getRuns(toTimestamp.subtract({ days: syncSizeInDays }), toTimestamp);
     }
 
     return {
@@ -153,5 +173,6 @@ export const useSession = defineStore("session", () => {
         startSync,
         syncState,
         getRuns,
+        getPreviousRuns
     };
 });

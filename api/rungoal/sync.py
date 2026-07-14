@@ -1,7 +1,8 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, cast
+from zoneinfo import ZoneInfo
 
 import httpx
 import typer
@@ -49,9 +50,17 @@ def sync_runs(
     from_: datetime | None = None,
     to: datetime | None = None,
     runtracker_db_path: Annotated[Path, typer.Argument(dir_okay=False, exists=True)] | None = None,
+    runtracker_tz: ZoneInfo | None = None,
     tcx: bool = True,
     wx: bool = True,
 ) -> TimeRange:
+
+    if runtracker_db_path:
+        if not runtracker_tz:
+            raise Exception("Please supply a time zone for Runtracker imports")
+
+    runtracker_tz = runtracker_tz or ZoneInfo("UTC")
+
     task1 = "Finding oldest runs..."
     task2 = "Downloading runs..."
 
@@ -103,7 +112,7 @@ def sync_runs(
     if wx:
         sync_wx(client.db, progress, updated_runs)
     if runtracker_db_path:
-        sync_runtracker(client, progress, runtracker_db_path)
+        sync_runtracker(client, progress, runtracker_db_path, runtracker_tz)
 
     return span
 
@@ -117,11 +126,6 @@ def sync_runs(
 def _update_runs(db: Session, runs: list[Run], timespan: TimeRange) -> list[RunFetchContext]:
     if not runs:
         return []
-
-    print("In update_runs: Timespan =", timespan)
-    print("Runs received:")
-    for r in runs:
-        print("  ", r.start_time)
 
     # Delete existing runs during this timespan that do not appear in the new run list
     db.exec(
@@ -162,7 +166,10 @@ def _update_runs(db: Session, runs: list[Run], timespan: TimeRange) -> list[RunF
 
 
 def sync_runtracker(
-    client: GoogleHealthClient, progress: ProgressProtocol, runtracker_db_path: Path
+    client: GoogleHealthClient,
+    progress: ProgressProtocol,
+    runtracker_db_path: Path,
+    timezone: ZoneInfo,
 ):
     from rungoal.import_runtracker import RuntrackerRunSession, RuntrackerUser, get_runtracker_db
 
@@ -199,18 +206,24 @@ def sync_runtracker(
                 elif rt_run.calories is not None:
                     run.calories += rt_run.calories
             else:
-                # RunTracker runs only have a date (no time), so set them all to noon
+                # RunTracker runs only have a date (no time), so set them all to 4pm
                 # in the local timezone
-                start_utc = datetime.combine(rt_run.date, time(12, 0)).astimezone().astimezone(UTC)
+                start_local = datetime.combine(rt_run.date, time(16, 0), timezone)
+
+                assert (utc_offset := start_local.utcoffset())
+                utc_offset_secs = int(utc_offset.total_seconds())
+
+                start_utc = start_local.astimezone(UTC)
+                end_time = start_utc + timedelta(seconds=rt_run.duration_secs)
 
                 try:
-                    end_time = start_utc + timedelta(seconds=rt_run.duration_secs)
                     run = Run(
                         user_id=client.user.id,
                         data_source=RunDataSource.RUNTRACKER,
                         data_source_id=str(rt_run.id),
                         start_time=start_utc,
                         end_time=end_time,
+                        utc_offset_seconds=utc_offset_secs,
                         update_time=end_time,
                         calories=rt_run.calories,
                         distance_millimeters=rt_run.distance_meters * 1000,

@@ -2,6 +2,7 @@ import asyncio
 from collections.abc import AsyncIterable
 from datetime import datetime
 from typing import Annotated, cast
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Cookie, Query, Response, status
 from fastapi.sse import EventSourceResponse
@@ -98,12 +99,17 @@ async def get_sync_stream(user: DepUser) -> AsyncIterable[SyncState]:
 class SyncParams(BaseModel):
     from_: datetime | None = Field(alias="from", default=None)
     to: datetime | None = None
-    include_runtracker: bool = False
+    runtracker_timezone: str | None = None
 
 
 @api.post("/sync")
 async def start_sync(user: DepUser, params: SyncParams):
-    await sync_start(cast(int, user.id), params.from_, params.to, params.include_runtracker)
+    await sync_start(
+        cast(int, user.id),
+        params.from_,
+        params.to,
+        ZoneInfo(params.runtracker_timezone) if params.runtracker_timezone else None,
+    )
     return status.HTTP_202_ACCEPTED
 
 

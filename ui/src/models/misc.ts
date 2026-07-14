@@ -1,5 +1,5 @@
 import { Temporal } from "temporal-polyfill";
-import { parseUtcDateTime, type DistanceUnit } from "./utils";
+import { parseUtcDateTime, type DistanceUnit } from "../utils";
 
 export interface ErrorResponse {
     title: string;
@@ -17,6 +17,13 @@ export interface User {
 export interface Settings {
     distance_unit: DistanceUnit;
 }
+
+export interface SyncParams {
+    from: string;
+    to: string;
+    runtracker_timezone?: string;
+}
+
 
 interface SyncStateDTO {
     is_syncing: boolean;

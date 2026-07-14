@@ -62,7 +62,7 @@ export function toRunStats(run: Run, distUnit: DistanceUnit): RunStats {
         date_str: run.start_time.toLocaleString(currentLocale, { dateStyle: "full" }),
         dist_abbr: distanceAbbr(distUnit),
         distance: distanceConvert(run.distance_millimeters, "millimeters", distUnit),
-        duration_str: durationFormatter.format(run.active_duration),
+        duration_str: durationFormatter.format(run.active_duration.round({ smallestUnit: 'second' })),
         pace_str: durationFormatter.format(pace),
     };
 }

@@ -2,7 +2,7 @@ import json
 import threading
 import xml.etree.ElementTree as ET
 from collections.abc import Generator
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import cache
 
 import google.auth.transport.requests
@@ -57,7 +57,7 @@ class _GoogleApiAuth(httpx.Auth):
 
 
 class GoogleHealthClient(httpx.Client):
-    GOOGLE_DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
+    FILTER_DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
     def __init__(self, user: User, db: Session, *args, **kwargs):
         self.db, self.user = db, user
@@ -67,10 +67,17 @@ class GoogleHealthClient(httpx.Client):
         kwargs.setdefault("transport", httpx.HTTPTransport(retries=10))
         super().__init__(*args, **kwargs)
 
-    def fetch_runs(self, range_: TimeRange) -> list[Run]:
+    def fetch_runs(self, range_: TimeRange, time_zones_accounted_for: bool = False) -> list[Run]:
         field = "exercise.interval.civil_start_time"
-        a = f'{field} >= "{range_.start.strftime(self.GOOGLE_DATETIME_FORMAT)}"'
-        b = f'{field} < "{range_.end.strftime(self.GOOGLE_DATETIME_FORMAT)}"'
+
+        # civil_start_time is in local time. Since we don't know what time zone these potential runs are in,
+        # subtract a day (unless the user has already done that and set [time_zones_accounted_for].)
+        if not time_zones_accounted_for:
+            range_.start -= timedelta(days=1)
+
+        a = f'{field} >= "{range_.start.strftime(self.FILTER_DATETIME_FORMAT)}"'
+        b = f'{field} < "{range_.end.strftime(self.FILTER_DATETIME_FORMAT)}"'
+
         response = self.get(
             "dataTypes/exercise/dataPoints",
             params={"filter": f"{a} AND {b}"},
@@ -134,6 +141,7 @@ class GoogleHealthClient(httpx.Client):
             data_source_id=dp["name"].split("/")[-1],
             start_time=datetime.fromisoformat(ex["interval"]["startTime"]),
             end_time=datetime.fromisoformat(ex["interval"]["endTime"]),
+            utc_offset_seconds=int(ex["interval"]["startUtcOffset"][:-1]),
             update_time=datetime.fromisoformat(ex["updateTime"]),
             calories=metrics.get("caloriesKcal"),
             distance_millimeters=metrics["distanceMillimeters"],

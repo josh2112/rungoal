@@ -2,7 +2,6 @@
 import LogoSvg from '../../assets/logo.svg';
 import { useDialogs } from '../stores/dialogs.ts';
 import { useSession } from '../stores/session.ts';
-import Sync from './Sync.vue';
 
 const session = useSession();
 const dialogs = useDialogs();
@@ -20,7 +19,6 @@ const openAccountDialog = () => {
                 RunGoal
             </div>
             <div class="d-flex">
-                <Sync />
                 <img v-if="session.user" class="avatar-circle" :src="`${session.user.avatar_uri}=s32-c`"
                     :alt="session.user.name" @click="() => openAccountDialog()" />
             </div>

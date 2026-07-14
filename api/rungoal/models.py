@@ -94,6 +94,7 @@ run_unique_constriant_columns = ("user_id", "data_source", "data_source_id")
 
 class RunBase(SQLModel):
     start_time: datetime = Field(sa_column=sa.Column(UTCDateTime(timezone=True)))
+    utc_offset_seconds: int
     calories: int | None
     distance_millimeters: int
     average_pace_seconds_per_meter: float

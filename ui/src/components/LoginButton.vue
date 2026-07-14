@@ -31,6 +31,7 @@ const { login, isReady } = useCodeClient({
 
 <template>
     <div v-if="!session.user">
-        <button type="button" class="btn btn-primary" :disabled="!isReady" @click="() => login()">Login</button>
+        <button type="button" class="btn btn-primary" :disabled="!isReady" @click="() => login()">Login with Google
+            Health</button>
     </div>
 </template>

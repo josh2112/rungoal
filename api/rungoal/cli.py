@@ -2,6 +2,7 @@ import contextlib
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 import typer
 from rich.progress import Progress as RichProgress
@@ -77,25 +78,32 @@ def cmd_sync_runs(
         Path | None,
         typer.Option(dir_okay=False, exists=True, help="Sync runs from a Runtracker database"),
     ] = None,
+    runtracker_tz: str | None = None,
     tcx: Annotated[bool, typer.Option(help="Sync TCX files")] = True,
     wx: Annotated[bool, typer.Option(help="Sync weather")] = True,
 ):
+    if runtracker_db_path and not runtracker_tz:
+        raise Exception("Please supply a time zone for Runtracker imports")
+
     with get_db() as db:
         user = get_user(db, user_id)
         with GoogleHealthClient(user, db) as client, CliProgress() as progress:
-            sync_runs(client, progress, from_, to, runtracker_db_path, tcx, wx)
+            zone = ZoneInfo(runtracker_tz) if runtracker_tz else None
+            sync_runs(client, progress, from_, to, runtracker_db_path, zone, tcx, wx)
 
 
 @app.command(
     "sync-runtracker", help="Syncs runs from a Runtracker database (by email) to our database."
 )
 def cmd_sync_runtracker(
-    user_id: int, runtracker_db_path: Annotated[Path, typer.Argument(dir_okay=False, exists=True)]
+    user_id: int,
+    runtracker_db_path: Annotated[Path, typer.Argument(dir_okay=False, exists=True)],
+    timezone: str,
 ):
     with get_db() as db:
         user = get_user(db, user_id)
         with GoogleHealthClient(user, db) as client, CliProgress() as progress:
-            sync_runtracker(client, progress, runtracker_db_path)
+            sync_runtracker(client, progress, runtracker_db_path, ZoneInfo(timezone))
 
 
 @app.command("sync-tcx", help="Syncs TCX track data for runs in the given timespan.")
@@ -153,8 +161,9 @@ def cmd_del_recent_runs(user_id: int, count: int = 1):
     "init-db", help="Deletes and recreates the database, optionally recreating revision data."
 )
 def cmd_init_db(regen: bool = False):
-    from alembic import command
     from alembic.config import Config
+
+    from alembic import command
 
     alembic_config = Config("alembic.ini")
 

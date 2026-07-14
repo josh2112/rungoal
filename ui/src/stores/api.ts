@@ -1,7 +1,7 @@
 import axios from "axios";
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import type { ErrorResponse } from "../misc";
+import type { ErrorResponse } from "../models/misc";
 
 
 const _baseUrl = `${import.meta.env.BASE_URL}/api`

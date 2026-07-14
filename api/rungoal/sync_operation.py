@@ -4,6 +4,7 @@ from collections.abc import AsyncIterable
 from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 from pydantic import BaseModel, Field
@@ -99,7 +100,7 @@ class SyncParams(BaseModel):
     user_id: int
     from_: datetime | None
     to: datetime | None
-    include_runtracker: bool
+    runtracker_timezone: ZoneInfo | None
 
 
 class SyncOperation:
@@ -111,16 +112,14 @@ class SyncOperation:
         with get_db() as db:
             user = get_user(db, params.user_id)
             with GoogleHealthClient(user, db) as client:
+                rt_db = Path(settings.RUNTRACKER_DB) if params.runtracker_timezone else None
                 span = sync_runs(
                     client,
                     self.progress,
                     from_=params.from_,
                     to=params.to,
-                    tcx=False,
-                    wx=False,
-                    runtracker_db_path=Path(settings.RUNTRACKER_DB)
-                    if params.include_runtracker
-                    else None,
+                    runtracker_db_path=rt_db,
+                    runtracker_tz=params.runtracker_timezone,
                 )
                 # The first sync means onboarding is completed
                 if not user.is_onboarded:
@@ -150,11 +149,14 @@ def sync_status(user_id: int) -> SyncState:
 
 # Starts a sync, if one is not already in progress.
 async def sync_start(
-    user_id: int, from_: datetime | None, to: datetime | None, include_runtracker: bool
+    user_id: int,
+    from_: datetime | None,
+    to: datetime | None,
+    runtracker_timezone: ZoneInfo | None,
 ):
     if user_id not in _syncs_in_progress:
         _syncs_in_progress[user_id] = SyncOperation(
-            SyncParams(user_id=user_id, from_=from_, to=to, include_runtracker=include_runtracker)
+            SyncParams(user_id=user_id, from_=from_, to=to, runtracker_timezone=runtracker_timezone)
         )
 
 
