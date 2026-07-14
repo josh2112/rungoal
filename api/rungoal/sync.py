@@ -118,6 +118,11 @@ def _update_runs(db: Session, runs: list[Run], timespan: TimeRange) -> list[RunF
     if not runs:
         return []
 
+    print("In update_runs: Timespan =", timespan)
+    print("Runs received:")
+    for r in runs:
+        print("  ", r.start_time)
+
     # Delete existing runs during this timespan that do not appear in the new run list
     db.exec(
         delete(Run)

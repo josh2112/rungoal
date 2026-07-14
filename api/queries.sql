@@ -14,9 +14,4 @@ group by
 order by
     goal.start_date desc;
 
-select
-    id
-from
-    run
-where
-    date(run.start_time) > '2026-07-01';
+select run.start_time, round(run.distance_millimeters / 1609344.0, 2) as mi from run where user_id = 1 and start_time >='2026-01-01' order by start_time desc;

@@ -132,6 +132,24 @@ def cmd_sync_weather(user_id: int, from_: datetime, to: datetime | None = None):
 
 
 @app.command(
+    "del-recent-runs",
+    help="Removes the most recent run(s) for the given user (helps debug syncing).",
+)
+def cmd_del_recent_runs(user_id: int, count: int = 1):
+    with get_db() as db:
+        user = get_user(db, user_id)
+        runs = db.exec(
+            select(Run)
+            .where(Run.user_id == user.id)
+            .order_by(col(Run.start_time).desc())
+            .limit(count)
+        ).all()
+        for run in runs:
+            db.delete(run)
+        db.commit()
+
+
+@app.command(
     "init-db", help="Deletes and recreates the database, optionally recreating revision data."
 )
 def cmd_init_db(regen: bool = False):
