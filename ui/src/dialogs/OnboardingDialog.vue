@@ -24,8 +24,6 @@ const onboardingIncludeRuntracker = ref(true);
 const startFirstSync = () => {
     (document.activeElement as HTMLElement)?.blur();
     dialogs.isOnboardingDialogOpen = false;
-
-    console.log("Starting sync with include runtracker = ", onboardingIncludeRuntracker.value);
     session.startSync(undefined, undefined, onboardingIncludeRuntracker.value);
 };
 </script>

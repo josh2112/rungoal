@@ -3,12 +3,9 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import type { ErrorResponse } from "../models/misc";
 
-
-const _baseUrl = "/api"
-
 export const useApi = defineStore("api", () => {
     const api = axios.create({
-        baseURL: _baseUrl,
+        baseURL: "/api",
         withCredentials: true,
         headers: {
             post: {
@@ -81,7 +78,7 @@ export const useApi = defineStore("api", () => {
                 try {
                     console.log("Attempting credential refresh...");
                     const refreshResponse = await axios.post(
-                        `${_baseUrl}/auth/refresh`,
+                        `${api.defaults.baseURL}/auth/refresh`,
                         {},
                         { withCredentials: true },
                     );
@@ -114,7 +111,7 @@ export const useApi = defineStore("api", () => {
         },
     );
 
-    const syncEventStreamUrl = `${_baseUrl}/sync/stream`
+    const syncEventStreamUrl = `${api.defaults.baseURL}/sync/stream`
 
     return { get: api.get, post: api.post, accessToken, errors, syncEventStreamUrl };
 });

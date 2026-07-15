@@ -21,6 +21,7 @@ export const useSession = defineStore("session", () => {
     const user = ref<User>();
     const settings = ref<Settings>({ distance_unit: "miles" }); // TODO: distance unit from Google Health settings?
     const syncState = ref<SyncState>();
+    const lastSynced = ref<number>();
 
     const goals = ref<Goal[]>([]);
     const runs = ref<Run[]>([]);
@@ -82,6 +83,7 @@ export const useSession = defineStore("session", () => {
             to: to?.toISOString(),
             runtracker_timezone: include_runtracker ? timezone : undefined
         } as SyncParams);
+
         streamSyncEvents();
     }
 
@@ -93,12 +95,15 @@ export const useSession = defineStore("session", () => {
                 Authorization: `Bearer ${api.accessToken}`,
             },
             signal: ctrl.signal,
+
             async onmessage(msg) {
                 const state = toSyncState(JSON.parse(msg.data));
                 syncState.value = state;
                 if (!state.is_syncing && state.synced_from && state.synced_to) {
                     console.log(`Sync complete: ${state.synced_from} -> ${state.synced_to}`);
                     ctrl.abort();
+
+                    lastSynced.value = Date.now();
 
                     // Auto-fetch the newly-synced runs (up to 4 weeks if this was a first-time sync).
                     let from = Temporal.Instant.from(state.synced_from).toZonedDateTimeISO("UTC");
@@ -107,6 +112,7 @@ export const useSession = defineStore("session", () => {
                     if (from.until(to).days > syncSizeInDays) {
                         from = to.subtract({ days: syncSizeInDays });
                     }
+
                     getGoals();
                     getRuns(from, to);
                 }
@@ -172,6 +178,7 @@ export const useSession = defineStore("session", () => {
         logOut,
         startSync,
         syncState,
+        lastSynced,
         getRuns,
         getPreviousRuns
     };

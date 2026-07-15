@@ -33,4 +33,4 @@ init_exception_handlers(app)
 #
 # For development, Vite controls the flow through a proxy in defineConfig() (see
 # ../ui/vite.config.ts).
-app.frontend("/", directory="../ui/dist", fallback="index.html")
+app.frontend("/", directory="../ui/dist", fallback="index.html", check_dir=not settings.DEV)

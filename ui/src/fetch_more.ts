@@ -1,14 +1,21 @@
-import { onBeforeUnmount, onMounted, type Ref } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, type Ref } from 'vue';
 
-export function useFetchMore(targetRef: Ref<Element | undefined>, callback: () => Promise<void>, margin_px?: number) {
+export function useFetchMore(targetRef: Ref<Element | undefined>, fetchMore: () => Promise<void>, margin_px?: number) {
     let observer: IntersectionObserver | null = null;
 
     onMounted(() => {
         observer = new IntersectionObserver(
             (entries) => {
-                // If the sentinel is visible, trigger the callback
                 if (entries[0].isIntersecting) {
-                    callback()
+                    // Target ref is visible; we need more data. Fetch, wait for the new data
+                    // to be rendered, then force the intersection to be checked again (in case
+                    // the fetch didn't fill the screen and the targetRef is still visible)
+                    fetchMore().then(() => nextTick().then(() => {
+                        if (targetRef.value) {
+                            observer?.unobserve(targetRef.value);
+                            observer?.observe(targetRef.value);
+                        }
+                    }));
                 }
             },
             { rootMargin: `${margin_px ?? 200}px` }
