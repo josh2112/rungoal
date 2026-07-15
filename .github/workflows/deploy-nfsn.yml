@@ -1,0 +1,48 @@
+name: Build & Deploy to josh2112.com/rungoal
+
+on:
+  # Build when I push to master
+  push:
+    branches:
+      - master
+  # Build manually (via Actions button)
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repo
+        uses: actions/checkout@v7.0.0
+
+      - name: ⚙️ Setup node.js
+        uses: actions/setup-node@v6.5.0
+        with:
+          node-version: '24'
+
+      - name: Build frontend
+        working-directory: ui
+        run: |
+          npm ci
+          npm run build
+
+      - name: Add SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.NFSN_DEPLOY_PRIVATE_KEY }}
+
+      - name: Add NFSN to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.NFSN_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy Backend
+        run: rsync -avz --delete api/ ${{ secrets.NFSN_USERNAME }}@${{ secrets.NFSN_HOST }}:/home/protected/rungoal/api/
+
+      - name: Deploy Frontend
+        # The trailing slash on 'dist/' ensures we sync the contents of the folder, not the folder itself
+        # This puts your built site directly into the NFSN web root
+        run: rsync -avz --delete ui/dist/ ${{ secrets.NFSN_USERNAME }}@${{ secrets.NFSN_HOST }}:/home/protected/rungoal/ui/dist/
+
+      # TODO: Kill daemon, create/upgrade DB via alembic, restart daemon
+      # run: ssh ${{ secrets.NFSN_USERNAME }}@${{ secrets.NFSN_HOST }} "daemon.sh restart"
