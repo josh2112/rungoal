@@ -7,8 +7,8 @@ import RunsList from "./components/RunsList.vue";
 import SyncView from "./components/SyncView.vue";
 import AccountDialog from "./dialogs/AccountDialog.vue";
 import OnboardingDialog from "./dialogs/OnboardingDialog.vue";
-import { useFetchMore } from "./fetch_more.ts";
-import { useSession } from "./stores/session.ts";
+import { useFetchMore } from "./fetch_more";
+import { useSession } from "./stores/session";
 import "./styles/style.scss";
 
 const session = useSession();

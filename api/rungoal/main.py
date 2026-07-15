@@ -26,3 +26,11 @@ if settings.DEV:
     )
 
 init_exception_handlers(app)
+
+# In production, FastAPI controls the flow. The web server will be set up to forward everything
+# matching "/[baseUrl]/*" to us. FastAPI will process "/api" and anything else it has a route
+# for, and serve the rest from the frontend's "dist" directory.
+#
+# For development, Vite controls the flow through a proxy in defineConfig() (see
+# ../ui/vite.config.ts).
+app.frontend("/", directory="../ui/dist", fallback="index.html")

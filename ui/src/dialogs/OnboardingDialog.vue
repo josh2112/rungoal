@@ -2,7 +2,7 @@
 import { Modal } from "bootstrap";
 import { onMounted, ref, watch } from "vue";
 import AccountView from "../components/AccountView.vue";
-import { useDialogs } from "../stores/dialogs.ts";
+import { useDialogs } from "../stores/dialogs";
 import { useSession } from "../stores/session";
 
 const session = useSession();

@@ -4,7 +4,7 @@ import { ref } from "vue";
 import type { ErrorResponse } from "../models/misc";
 
 
-const _baseUrl = `${import.meta.env.BASE_URL}/api`
+const _baseUrl = "/api"
 
 export const useApi = defineStore("api", () => {
     const api = axios.create({
@@ -81,7 +81,7 @@ export const useApi = defineStore("api", () => {
                 try {
                     console.log("Attempting credential refresh...");
                     const refreshResponse = await axios.post(
-                        `${import.meta.env.BASE_URL}/api/auth/refresh`,
+                        `${_baseUrl}/auth/refresh`,
                         {},
                         { withCredentials: true },
                     );
