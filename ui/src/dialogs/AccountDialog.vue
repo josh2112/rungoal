@@ -27,6 +27,8 @@ const closeAndLogOut = () => {
     close();
     session.logOut();
 }
+
+const appVersion = import.meta.env.APP_VERSION;
 </script>
 
 <template>
@@ -39,6 +41,9 @@ const closeAndLogOut = () => {
                 </div>
                 <div class="modal-body">
                     <AccountView />
+                    <div class="mt-4">
+                        <small class="mt-3">RunGoal version {{ appVersion }}</small>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-primary" data-bs-dismiss="modal"
