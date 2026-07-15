@@ -37,12 +37,12 @@ jobs:
           ssh-keyscan -H ${{ secrets.NFSN_HOST }} >> ~/.ssh/known_hosts
 
       - name: Deploy Backend
-        run: rsync -avz --delete api/ ${{ secrets.NFSN_USERNAME }}@${{ secrets.NFSN_HOST }}:/home/protected/rungoal/api/
+        run: rsync -avz --delete api/ ${{ secrets.NFSN_USER }}@${{ secrets.NFSN_HOST }}:/home/protected/rungoal/api/
 
       - name: Deploy Frontend
         # The trailing slash on 'dist/' ensures we sync the contents of the folder, not the folder itself
         # This puts your built site directly into the NFSN web root
-        run: rsync -avz --delete ui/dist/ ${{ secrets.NFSN_USERNAME }}@${{ secrets.NFSN_HOST }}:/home/protected/rungoal/ui/dist/
+        run: rsync -avz --delete ui/dist/ ${{ secrets.NFSN_USER }}@${{ secrets.NFSN_HOST }}:/home/protected/rungoal/ui/dist/
 
       # TODO: Kill daemon, create/upgrade DB via alembic, restart daemon
       # run: ssh ${{ secrets.NFSN_USERNAME }}@${{ secrets.NFSN_HOST }} "daemon.sh restart"
