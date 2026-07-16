@@ -1,0 +1,1 @@
+exec /home/protected/rungoal/api/.venv/bin/uvicorn rungoal.main:app --host 0.0.0.0 --port 8400 --proxy-headers --forwarded-allow-ips='*'
