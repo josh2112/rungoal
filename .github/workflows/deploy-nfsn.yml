@@ -47,7 +47,7 @@ jobs:
             - name: Deploy
               run: |
                   rsync -avzR --delete \
-                  --exclude=".env" --exclude="client_secret.json" --exclude="rungoal.db" --exclude="/api/.venv" \
+                  --exclude=".env" --exclude="client_secret.json" --exclude="/api/.venv" --exclude="/data" \
                   ui/dist/ \
                   api/ \
                   ${{ vars.HOST }}:$DEST_PATH
@@ -60,7 +60,7 @@ jobs:
             #  run: nfsn stop-daemon $SERVICE
 
             - name: Create/migrate DB
-              run: ssh $DEST_HOST "cd $DEST_PATH/api && uv run alembic upgrade head"
+              run: ssh $DEST_HOST "cd $DEST_PATH/api && mkdir -p ../data && uv run alembic upgrade head && chgrp -R web ../data && chmod -R g+w ../data"
 
             #- name: Restart backend service
             #  run: nfsn start-daemon $SERVICE
