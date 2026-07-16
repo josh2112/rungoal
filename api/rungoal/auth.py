@@ -113,7 +113,7 @@ def get_google_user(auth: GoogleApiAuthCode) -> UserWithGoogleCreds:
     """Verifies the auth code, client id, client secret, and scopes with Google
     for access and refresh tokens."""
     flow = Flow.from_client_secrets_file(
-        "client_secret.json",
+        "../client_secret.json",
         _GOOGLE_API_SCOPES,
         redirect_uri="postmessage",
     )

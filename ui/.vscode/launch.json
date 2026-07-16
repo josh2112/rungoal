@@ -1,14 +1,14 @@
 {
-    "version": "0.2.0",
     "configurations": [
         {
+            "name": "Frontend",
             "type": "chrome",
             "request": "launch",
-            "name": "Frontend",
-            "url": "http://localhost:5173/rungoal/",
+            "cwd": "${workspaceFolder:ui}",
+            "url": "http://localhost:5173/",
             "webRoot": "${workspaceFolder}/ui",
             "sourceMaps": true,
-            "preLaunchTask": "npm-run-dev"
+            "preLaunchTask": "Run frontend (dev)"
         }
     ]
 }

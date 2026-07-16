@@ -1,48 +1,56 @@
 name: Build & Deploy to josh2112.com/rungoal
 
 on:
-  # Build when I push to master
-  push:
-    branches:
-      - master
-  # Build manually (via Actions button)
-  workflow_dispatch:
+    # Build when I push to master
+    push:
+        branches: [master]
+    # Build manually (via Actions button)
+    workflow_dispatch:
 
 jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Clone repo
-        uses: actions/checkout@v7.0.0
+    build-and-deploy:
+        runs-on: ubuntu-latest
+        environment: "josh2112.com (NFSN)"
+        env:
+            DEST_HOST: "${{ secrets.USERNAME }}@${{ vars.HOST }}"
+            DEST_PATH: "/home/protected/rungoal"
+        steps:
+            - name: Clone repo
+              uses: actions/checkout@v7.0.0
 
-      - name: ⚙️ Setup node.js
-        uses: actions/setup-node@v6.5.0
-        with:
-          node-version: '24'
+            - name: Setup node.js
+              uses: actions/setup-node@v6.5.0
+              with:
+                  node-version: "24"
 
-      - name: Build frontend
-        working-directory: ui
-        run: |
-          npm ci
-          npm run build
+            - name: Build frontend
+              working-directory: ui
+              run: |
+                  npm ci
+                  npm run build
 
-      - name: Add SSH key
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.NFSN_DEPLOY_PRIVATE_KEY }}
+            - name: Configure ssh/rsync
+              run: |
+                  mkdir -p ~/.ssh
+                  echo "${{ secrets.PRIVATE_KEY }}" > ~/.ssh/key
+                  chmod 600 ~/.ssh/key
+                  ssh-keyscan -H ${{ vars.HOST }} >> ~/.ssh/known_hosts
 
-      - name: Add NFSN to known hosts
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.NFSN_HOST }} >> ~/.ssh/known_hosts
+            - name: Deploy
+              run: |
+                  rsync -avzR --delete \
+                  --exclude=".vscode/***" --exclude=".git*" \
+                  ui/dist/ api/ \
+                  $DEST_HOST:$DEST_PATH
 
-      - name: Deploy Backend
-        run: rsync -avz --delete api/ ${{ secrets.NFSN_USER }}@${{ secrets.NFSN_HOST }}:/home/protected/rungoal/api/
+            - name: Refresh Python venv
+              run: ssh $DEST_HOST "cd $DEST_PATH/api && uv sync --frozen --no-dev"
 
-      - name: Deploy Frontend
-        # The trailing slash on 'dist/' ensures we sync the contents of the folder, not the folder itself
-        # This puts your built site directly into the NFSN web root
-        run: rsync -avz --delete ui/dist/ ${{ secrets.NFSN_USER }}@${{ secrets.NFSN_HOST }}:/home/protected/rungoal/ui/dist/
+            #- name: Stop backend service
+            #  run: nfsn stop-daemon $SERVICE
 
-      # TODO: Kill daemon, create/upgrade DB via alembic, restart daemon
-      # run: ssh ${{ secrets.NFSN_USERNAME }}@${{ secrets.NFSN_HOST }} "daemon.sh restart"
+            #- name: Create/migrate DB
+            #  run: ssh $DEST_HOST "cd $DEST_PATH/api && uv run alembic upgrade head"
+
+            #- name: Restart backend service
+            #  run: nfsn start-daemon $SERVICE

@@ -6,23 +6,15 @@
         {
             "path": "ui",
         },
+        {
+            "path": ".",
+            "name": "(misc)",
+        },
     ],
-    "launch": {
-        "compounds": [
-            {
-                "name": "Launch Full Stack",
-                "configurations": ["Backend", "Frontend"],
-            },
-        ],
-    },
     "settings": {
-        "ruff.interpreter": [
-            "${workspaceFolder}/../api/.venv/Scripts/python.exe",
-        ],
-        "python.analysis.indexing": true,
-        "python.analysis.packageIndexDepths": [
-            { "name": "", "depth": 20, "includeAllSymbols": true },
-        ],
-        "python.analysis.userFileIndexingLimit": 5000,
+        "files.exclude": {
+            "api/": true,
+            "ui/": true,
+        },
     },
 }

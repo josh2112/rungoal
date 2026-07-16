@@ -16,7 +16,7 @@ from rungoal.utils import TimeRange
 
 @cache
 def _client_secret() -> tuple[str, str, str]:
-    with open("client_secret.json") as f:
+    with open("../client_secret.json") as f:
         contents = json.load(f)["web"]
         return contents["client_id"], contents["client_secret"], contents["token_uri"]
 
