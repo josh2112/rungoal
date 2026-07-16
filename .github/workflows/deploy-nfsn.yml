@@ -44,10 +44,11 @@ jobs:
                   chmod 600 ~/.ssh/config
 
             - name: Deploy
+            # ui/dist/ \
               run: |
                   rsync -avzR --delete \
                   --exclude=".env" --exclude="client_secret.json" --exclude="rungoal.db" --exclude="/api/.venv" \
-                  ui/dist/ api/ \
+                  api/ \
                   ${{ vars.HOST }}:$DEST_PATH
 
             #- name: Refresh Python venv
