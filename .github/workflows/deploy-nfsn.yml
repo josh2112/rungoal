@@ -16,20 +16,21 @@ jobs:
             DEST_PATH: "/home/protected/rungoal"
             # NFSN
             CARGO_BUILD_JOBS: 1
+            OPENSSL_DIR: /usr
         steps:
             - name: Clone repo
               uses: actions/checkout@v7.0.0
 
-            - name: Setup node.js
-              uses: actions/setup-node@v6.5.0
-              with:
-                  node-version: "24"
+            #- name: Setup node.js
+            #  uses: actions/setup-node@v6.5.0
+            #  with:
+            #      node-version: "24"
 
-            - name: Build frontend
-              working-directory: ui
-              run: |
-                  npm ci
-                  npm run build
+            #- name: Build frontend
+            #  working-directory: ui
+            #  run: |
+            #      npm ci
+            #      npm run build
 
             - name: Configure ssh/rsync
               run: |
@@ -41,9 +42,6 @@ jobs:
                   printf 'Host %s\n  HostName %s\n  User %s\n  IdentityFile ~/.ssh/id_rsa\n  IdentitiesOnly yes\n  StrictHostKeyChecking yes\n' \
                     "${{ vars.HOST }}" "${{ vars.HOST }}" "${{ secrets.USERNAME }}" > ~/.ssh/config
                   chmod 600 ~/.ssh/config
-
-            - name: Test SSH!
-              run: ssh ${{ vars.HOST }} "echo IT WORKED???"
 
             - name: Deploy
               run: |
