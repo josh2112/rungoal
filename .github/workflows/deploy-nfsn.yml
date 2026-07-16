@@ -46,7 +46,7 @@ jobs:
             - name: Deploy
               run: |
                   rsync -avzR --delete \
-                  --exclude=".env" --exclude="client_secret.json" --exclude="rungoal.db" --exclude="api/.venv"\
+                  --exclude=".env" --exclude="client_secret.json" --exclude="rungoal.db" --exclude="/api/.venv" \
                   ui/dist/ api/ \
                   ${{ vars.HOST }}:$DEST_PATH
 
