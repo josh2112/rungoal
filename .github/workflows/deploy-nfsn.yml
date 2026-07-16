@@ -14,8 +14,9 @@ jobs:
         env:
             DEST_HOST: "${{ secrets.USERNAME }}@${{ vars.HOST }}"
             DEST_PATH: "/home/protected/rungoal"
-            # NFSN
+            # NFSN: Only 1 CPU core is available to us
             CARGO_BUILD_JOBS: 1
+            # NFSN: Keep rust from picking up super-old OpenSSL in /usr/local
             OPENSSL_DIR: /usr
         steps:
             - name: Clone repo
@@ -51,14 +52,15 @@ jobs:
                   api/ \
                   ${{ vars.HOST }}:$DEST_PATH
 
-            #- name: Refresh Python venv
-            #  run: ssh ${{ vars.HOST }} "cd $DEST_PATH/api && ulimit -t 600 && uv sync --frozen --no-dev"
+            - name: Refresh Python venv
+              # Set proces timeout to 10 minutes, rust builds can be very slow
+              run: ssh ${{ vars.HOST }} "cd $DEST_PATH/api && ulimit -t 600 && uv sync --frozen --no-dev"
 
             #- name: Stop backend service
             #  run: nfsn stop-daemon $SERVICE
 
-            #- name: Create/migrate DB
-            #  run: ssh $DEST_HOST "cd $DEST_PATH/api && uv run alembic upgrade head"
+            - name: Create/migrate DB
+              run: ssh $DEST_HOST "cd $DEST_PATH/api && uv run alembic upgrade head"
 
             #- name: Restart backend service
             #  run: nfsn start-daemon $SERVICE
