@@ -63,4 +63,4 @@ jobs:
               run: ssh ${{ vars.HOST }} "cd $DEST_PATH/api && mkdir -p ../data && uv run alembic upgrade head && chgrp -R web ../data && chmod -R g+w ../data"
 
             - name: Restart backend service
-              run: ssh ${{ vars.HOST }} "chmod a+x run-nfsn.sh && nfsn start-daemon rungoal"
+              run: ssh ${{ vars.HOST }} "chmod a+x $DEST_PATH/run-nfsn.sh && nfsn start-daemon rungoal"
