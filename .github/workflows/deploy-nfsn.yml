@@ -47,7 +47,7 @@ jobs:
             - name: Deploy
               run: |
                   rsync -avzR --delete \
-                  --exclude=".env" --exclude="client_secret.json" --exclude="/api/.venv" --exclude="/data" \
+                  --exclude="daemon.sh" --exclude=".env" --exclude="client_secret.json" --exclude="/api/.venv" --exclude="/data" \
                   ui/dist/ \
                   api/ \
                   ${{ vars.HOST }}:$DEST_PATH
