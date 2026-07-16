@@ -42,6 +42,9 @@ jobs:
                     "${{ vars.HOST }}" "${{ vars.HOST }}" "${{ secrets.USERNAME }}" > ~/.ssh/config
                   chmod 600 ~/.ssh/config
 
+            - name: Test SSH!
+              run: ssh ${{ vars.HOST }} "echo IT WORKED???"
+
             - name: Deploy
               run: |
                   rsync -avzR --delete \
