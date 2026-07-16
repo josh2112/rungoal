@@ -14,6 +14,8 @@ jobs:
         env:
             DEST_HOST: "${{ secrets.USERNAME }}@${{ vars.HOST }}"
             DEST_PATH: "/home/protected/rungoal"
+            # NFSN
+            CARGO_BUILD_JOBS: 1
         steps:
             - name: Clone repo
               uses: actions/checkout@v7.0.0
@@ -40,18 +42,15 @@ jobs:
                     "${{ vars.HOST }}" "${{ vars.HOST }}" "${{ secrets.USERNAME }}" > ~/.ssh/config
                   chmod 600 ~/.ssh/config
 
-            - name: Test SSH!
-              run: ssh ${{ vars.HOST }} "echo IT WORKED???"
-
             - name: Deploy
               run: |
                   rsync -avzR --delete \
-                  --exclude=".vscode/***" --exclude=".git*" \
+                  --exclude=".env" --exclude="client_secret.json" --exclude="rungoal.db" --exclude="api/.venv/"\
                   ui/dist/ api/ \
                   ${{ vars.HOST }}:$DEST_PATH
 
-            - name: Refresh Python venv
-              run: ssh ${{ vars.HOST }} "cd $DEST_PATH/api && uv sync --frozen --no-dev"
+            #- name: Refresh Python venv
+            #  run: ssh ${{ vars.HOST }} "cd $DEST_PATH/api && ulimit -t 600 && uv sync --frozen --no-dev"
 
             #- name: Stop backend service
             #  run: nfsn stop-daemon $SERVICE

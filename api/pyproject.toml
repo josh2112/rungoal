@@ -9,14 +9,18 @@ authors = [
 requires-python = ">=3.11"
 dependencies = [
     "alembic>=1.18.4",
-    "fastapi[standard]>=0.136.3",
+    "email-validator>=2.3.0",
+    "fastapi>=0.139.2",
     "google-api-python-client>=2.197.0",
     "google-auth-oauthlib>=1.4.0",
+    "httpx>=0.28.1",
+    "pydantic-settings>=2.14.2",
     "python-jose[cryptography]>=3.5.0",
     "sqlalchemy-utils>=0.42.1",
     "sqlmodel>=0.0.38",
     "typer>=0.26.7",
     "tzdata>=2026.3",
+    "uvicorn>=0.51.0",
 ]
 
 [project.scripts]
@@ -34,6 +38,11 @@ build-backend = "hatchling.build"
 
 [lint]
 select = ["ALL"]
+
+[dependency-groups]
+dev = [
+    "fastapi-cli>=0.0.32",
+]
 
 [tool.ruff]
 line-length = 100
