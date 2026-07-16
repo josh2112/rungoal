@@ -5,7 +5,7 @@ import type { ErrorResponse } from "../models/misc";
 
 export const useApi = defineStore("api", () => {
     const api = axios.create({
-        baseURL: "/api",
+        baseURL: `${import.meta.env.BASE_URL.replace(/\/$/, "")}/api`,
         withCredentials: true,
         headers: {
             post: {
@@ -25,9 +25,7 @@ export const useApi = defineStore("api", () => {
 
     const processQueue = (error: any, token: string | null = null) => {
         if (failedQueue.length) {
-            console.log(
-                `Reprocessing ${failedQueue.length} queued requests...`,
-            );
+            console.log(`Reprocessing ${failedQueue.length} queued requests...`);
         }
         failedQueue.forEach((prom) => {
             if (error) {
@@ -111,7 +109,7 @@ export const useApi = defineStore("api", () => {
         },
     );
 
-    const syncEventStreamUrl = `${api.defaults.baseURL}/sync/stream`
+    const syncEventStreamUrl = `${api.defaults.baseURL}/sync/stream`;
 
     return { get: api.get, post: api.post, accessToken, errors, syncEventStreamUrl };
 });

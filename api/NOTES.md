@@ -1,7 +1,5 @@
 ## TODO
 
-- Fix onboarding dialog showing up if you refresh while initial sync is in progress
-
 ### Flow
 
 After login and /user/me:

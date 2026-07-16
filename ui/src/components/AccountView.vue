@@ -5,13 +5,13 @@ const session = useSession();
 </script>
 
 <template>
-    <div class="account-box">
-        <img class="avatar" :src="`${session.user?.avatar_uri}=s64-c`" />
+    <div v-if="session.user" class="account-box">
+        <img class="avatar" :src="`${session.user.avatar_uri}=s64-c`" />
         <div>
             <div class="user-name">
-                {{ session.user?.name }}
+                {{ session.user.name }}
             </div>
-            <div>{{ session.user?.email }}</div>
+            <div>{{ session.user.email }}</div>
         </div>
     </div>
 </template>
