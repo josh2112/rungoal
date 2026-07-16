@@ -49,6 +49,7 @@ jobs:
                   --exclude="daemon.sh" --exclude=".env" --exclude="client_secret.json" --exclude="/api/.venv" --exclude="/data" \
                   ui/dist/ \
                   api/ \
+                  run-nfsn.sh \
                   ${{ vars.HOST }}:$DEST_PATH
 
             - name: Refresh Python venv
