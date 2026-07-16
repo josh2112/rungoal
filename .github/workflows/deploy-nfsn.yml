@@ -12,7 +12,6 @@ jobs:
         runs-on: ubuntu-latest
         environment: "josh2112.com (NFSN)"
         env:
-            DEST_HOST: "${{ secrets.USERNAME }}@${{ vars.HOST }}"
             DEST_PATH: "/home/protected/rungoal"
             # NFSN: Only 1 CPU core is available to us
             CARGO_BUILD_JOBS: 1
@@ -57,12 +56,10 @@ jobs:
               run: ssh ${{ vars.HOST }} "cd $DEST_PATH/api && ulimit -t 600 && uv sync --frozen --no-dev"
 
             - name: Stop backend service
-              run: nfsn stop-daemon rungoal
+              run: ssh ${{ vars.HOST }} "nfsn stop-daemon rungoal"
 
             - name: Create/migrate DB
-              run: ssh $DEST_HOST "cd $DEST_PATH/api && mkdir -p ../data && uv run alembic upgrade head && chgrp -R web ../data && chmod -R g+w ../data"
+              run: ssh ${{ vars.HOST }} "cd $DEST_PATH/api && mkdir -p ../data && uv run alembic upgrade head && chgrp -R web ../data && chmod -R g+w ../data"
 
             - name: Restart backend service
-              run: |
-                  chmod a+x run-nfsn.sh
-                  nfsn start-daemon rungoal
+              run: ssh ${{ vars.HOST }} "chmod a+x run-nfsn.sh && nfsn start-daemon rungoal"
