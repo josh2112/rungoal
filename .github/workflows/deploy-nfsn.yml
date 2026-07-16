@@ -32,19 +32,26 @@ jobs:
             - name: Configure ssh/rsync
               run: |
                   mkdir -p ~/.ssh
-                  echo "${{ secrets.PRIVATE_KEY }}" > ~/.ssh/key
-                  chmod 600 ~/.ssh/key
+                  printf '%s\n' "${{ secrets.PRIVATE_KEY }}" > ~/.ssh/id_rsa
+                  chmod 600 ~/.ssh/id_rsa
                   ssh-keyscan -H ${{ vars.HOST }} >> ~/.ssh/known_hosts
+                  chmod 644 ~/.ssh/known_hosts
+                  printf 'Host %s\n  HostName %s\n  User %s\n  IdentityFile ~/.ssh/id_rsa\n  IdentitiesOnly yes\n  StrictHostKeyChecking yes\n' \
+                    "${{ vars.HOST }}" "${{ vars.HOST }}" "${{ secrets.USERNAME }}" > ~/.ssh/config
+                  chmod 600 ~/.ssh/config
+
+            - name: Test SSH!
+              run: ssh ${{ vars.HOST }} "echo IT WORKED???"
 
             - name: Deploy
               run: |
                   rsync -avzR --delete \
                   --exclude=".vscode/***" --exclude=".git*" \
                   ui/dist/ api/ \
-                  $DEST_HOST:$DEST_PATH
+                  ${{ vars.HOST }}:$DEST_PATH
 
             - name: Refresh Python venv
-              run: ssh $DEST_HOST "cd $DEST_PATH/api && uv sync --frozen --no-dev"
+              run: ssh ${{ vars.HOST }} "cd $DEST_PATH/api && uv sync --frozen --no-dev"
 
             #- name: Stop backend service
             #  run: nfsn stop-daemon $SERVICE
