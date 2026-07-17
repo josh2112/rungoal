@@ -179,6 +179,12 @@ class GoalResponse(GoalCreate):
     current_distance_meters: float
 
 
+class GoalUpdate(BaseModel):
+    start_date: date | None = None
+    end_date: date | None = None
+    distance_meters: float | None
+
+
 class Goal(GoalCreate, table=True):
     id: int = Field(default=None, primary_key=True)
 

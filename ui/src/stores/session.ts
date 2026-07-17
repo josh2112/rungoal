@@ -3,7 +3,7 @@ import { defineStore } from "pinia";
 import { Temporal } from "temporal-polyfill";
 import { onMounted, ref } from "vue";
 import { syncSizeInDays } from "../consts";
-import { toGoal, type Goal } from "../models/goal";
+import { toGoal, type Goal, type GoalCreate, type GoalDTO } from "../models/goal";
 import { toSyncState, type Settings, type SyncParams, type SyncState, type User } from "../models/misc";
 import { toRun, type Run } from "../models/run";
 import { useApi } from "./api";
@@ -119,9 +119,19 @@ export const useSession = defineStore("session", () => {
         });
     }
 
-    async function getGoals() {
-        goals.value = ((await api.get("/goals")).data as []).map((g) => toGoal(g));
+    function _set_goals(goalDTOs: GoalDTO[]) {
+        goals.value = goalDTOs.map((g) => toGoal(g));
     }
+
+    async function getGoals() {
+        _set_goals((await api.get("/goals")).data as []);
+    }
+
+    async function addGoal(goal: GoalCreate) {
+        _set_goals((await api.post("/goals", goal)).data as []);
+    }
+
+    async function updateGoal()
 
     async function getRuns(from: Temporal.ZonedDateTime, to: Temporal.ZonedDateTime): Promise<boolean> {
         from = from.round({ smallestUnit: "second" });
@@ -163,8 +173,8 @@ export const useSession = defineStore("session", () => {
         const toTimestamp =
             runs.value.length > 0
                 ? runs.value.reduce((min, cur) =>
-                      Temporal.ZonedDateTime.compare(cur.start_time, min.start_time) < 0 ? cur : min,
-                  ).start_time
+                    Temporal.ZonedDateTime.compare(cur.start_time, min.start_time) < 0 ? cur : min,
+                ).start_time
                 : Temporal.Now.zonedDateTimeISO("UTC");
         return await getRuns(toTimestamp.subtract({ days: syncSizeInDays }), toTimestamp);
     }

@@ -13,7 +13,9 @@ from rungoal import auth, crud
 from rungoal.deps import DepDb, DepUser
 from rungoal.models import (
     AccessToken,
+    GoalCreate,
     GoalResponse,
+    GoalUpdate,
     GoogleApiAuthCode,
     Run,
     RunResponse,
@@ -116,6 +118,24 @@ async def start_sync(user: DepUser, params: SyncParams):
 @api.get("/goals")
 def get_goals(db: DepDb, user: DepUser) -> list[GoalResponse]:
     return list(crud.get_goals(db, cast(int, user.id)))
+
+
+@api.post("/goals")
+def add_goal(db: DepDb, user: DepUser, goal: GoalCreate) -> list[GoalResponse]:
+    crud.create_goal(db, cast(int, user.id), goal)
+    return get_goals(db, user)
+
+
+@api.patch("/goals/{goal_id}")
+def update_goal(db: DepDb, user: DepUser, goal_id: int, goal: GoalUpdate) -> list[GoalResponse]:
+    crud.update_goal(db, cast(int, user.id), goal_id, goal)
+    return get_goals(db, user)
+
+
+@api.delete("/goals/{gial_id}")
+def delete_goal(db: DepDb, user: DepUser, goal_id: int):
+    crud.delete_goal(db, cast(int, user.id), goal_id)
+    return status.HTTP_200_OK
 
 
 @api.get("/runs", response_model=list[RunResponse])

@@ -6,7 +6,15 @@ from sqlalchemy import func, text
 from sqlmodel import Session, col, select
 
 from rungoal.errors import RecordNotFoundError
-from rungoal.models import Goal, GoalResponse, Run, User, UserWithGoogleCreds
+from rungoal.models import (
+    Goal,
+    GoalCreate,
+    GoalResponse,
+    GoalUpdate,
+    Run,
+    User,
+    UserWithGoogleCreds,
+)
 
 
 def _add_record(db: Session, record: Any) -> Any:
@@ -32,6 +40,31 @@ def get_user_by_email(db: Session, email: str) -> User | None:
 def create_user(db: Session, user: UserWithGoogleCreds) -> User:
     # Make a User out of this so we can get the ID
     return _add_record(db, User(**user.model_dump()))
+
+
+def _verify_goal_access(db: Session, user_id: int, goal_id: int) -> Goal:
+    goal = db.exec(
+        select(Goal).where(Goal.id == goal_id).where(Goal.user_id == user_id)
+    ).one_or_none()
+    if not goal:
+        raise RecordNotFoundError({str(User.id): user_id, str(Goal.id): goal_id})
+    return goal
+
+
+def create_goal(db: Session, user_id: int, goal: GoalCreate):
+    return _add_record(db, Goal(**goal.model_dump(), user_id=user_id))
+
+
+def update_goal(db: Session, user_id: int, goal_id: int, goal_update: GoalUpdate):
+    goal = _verify_goal_access(db, user_id, goal_id)
+    goal.sqlmodel_update(goal_update.model_dump(exclude_unset=True))
+    _add_record(db, goal)
+
+
+def delete_goal(db: Session, user_id: int, goal_id: int):
+    goal = _verify_goal_access(db, user_id, goal_id)
+    db.delete(goal)
+    db.commit()
 
 
 def get_goals(db: Session, user_id: int) -> list[GoalResponse]:

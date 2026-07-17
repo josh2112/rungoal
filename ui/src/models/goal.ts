@@ -1,12 +1,33 @@
 import { Temporal } from "temporal-polyfill";
 import { currentLocale, distanceAbbr, distanceConvert, type DistanceUnit } from "../utils";
 
+// need to think about this.
+// goal creation needs: start/end date (set as temporal, converted to string), distance
+// goal update needs: same as goal creation (but all optional?) plus ID
+// goal delete needs id only
+// goal get needs: start/end date(set as string, converted to temporal), distance, current dist
 
-interface GoalDTO {
-    id: number;
+interface GoalLocal {
+    start_date: Temporal.PlainDate;
+    end_date: Temporal.PlainDate;
+}
+
+export interface GoalCreate extends GoalLocal {
     distance_meters: number;
+}
+
+export interface GoalUpdate extends GoalCreate {
+    id: number
+}
+
+interface GoalRemote {
     start_date: string;
     end_date: string;
+}
+
+export interface GoalDTO extends GoalRemote {
+    id: number;
+    distance_meters: number;
     current_distance_meters: number;
 }
 
