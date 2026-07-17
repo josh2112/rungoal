@@ -2,21 +2,6 @@
 
 ### Flow
 
-After login and /user/me:
-
-- Check sync state, and start streaming sync events if in progress
-- If not is onboarded, Account.vue will handle onboarding
-- Else:
-    - Get initial set of runs (past 4 weeks)
-    - If no sync is in progress, start one.
-
-Every time sync is done:
-
-- if we have runs: ask for any runs matching returned sync span
-- if not, just get past 4 weeks
-
-* No auto-sync in dev mode!
-
 Features:
 
 - Figure out likely running location (Sherman Branch, Veteran's Park, etc.) computed from GPS track
