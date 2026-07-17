@@ -5,6 +5,8 @@ import svgLoader from "vite-svg-loader";
 
 const packageJson = JSON.parse(readFileSync("package.json", "utf-8"));
 
+const baseUrl = "/rungoal";
+
 // https://vite.dev/config/
 export default defineConfig({
     plugins: [vue(), svgLoader()],
@@ -20,7 +22,7 @@ export default defineConfig({
             //
             // For production, FastAPI controls the flow through FastAPI.frontend() (see
             // ../api/rungoal/main.py).
-            "^/api/.*": {
+            [`^${baseUrl}/api/.*`]: {
                 target: "http://localhost:8000/",
                 changeOrigin: true,
             },

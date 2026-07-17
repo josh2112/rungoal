@@ -3,17 +3,30 @@ from importlib.metadata import version
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
+from alembic import command
+from alembic.config import Config
 from rungoal.cors import allowed_origins
+from rungoal.database import ensure_db_path_exists
 from rungoal.errors import init_exception_handlers
 from rungoal.routes import api
 from rungoal.settings import settings
 
 # ================ Init ================
 
-app = FastAPI(title="RunGoal", version=version("rungoal"), docs_url="/api/docs", redoc_url=None)
+# Create / upgrade the databse
+alembic_config = Config("alembic.ini")
+ensure_db_path_exists(alembic_config)
+command.upgrade(alembic_config, "head")
+
+app = FastAPI(
+    title="RunGoal",
+    version=version("rungoal"),
+    docs_url="/api/docs",
+    redoc_url=None,
+)
 
 
-app.include_router(api)
+app.include_router(api, prefix="/rungoal")
 
 # Allow calls from the frontend on a different origin (not needed for production?)
 if settings.DEV:
@@ -33,4 +46,6 @@ init_exception_handlers(app)
 #
 # For development, Vite controls the flow through a proxy in defineConfig() (see
 # ../ui/vite.config.ts).
-app.frontend("/", directory="../ui/dist", fallback="index.html", check_dir=not settings.DEV)
+
+if not settings.DEV:
+    app.frontend("/", directory="../ui/dist", fallback="index.html", check_dir=True)

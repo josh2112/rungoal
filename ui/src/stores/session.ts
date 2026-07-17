@@ -9,9 +9,7 @@ import { toRun, type Run } from "../models/run";
 import { useApi } from "./api";
 import { useDialogs } from "./dialogs";
 
-
 const DEV_NO_AUTO_SYNC = true;
-
 
 export const useSession = defineStore("session", () => {
     const dialogs = useDialogs();
@@ -48,7 +46,7 @@ export const useSession = defineStore("session", () => {
     }
 
     async function getMe() {
-        user.value = (await api.get("/user/me")).data;
+        user.value = (await api.get("/user/me")).data as User;
 
         await updateSyncState();
 
@@ -57,14 +55,12 @@ export const useSession = defineStore("session", () => {
             if (!syncState.value?.is_syncing) {
                 dialogs.isOnboardingDialogOpen = true;
             }
-        }
-        else {
+        } else {
             await getGoals();
 
             if (syncState.value?.is_syncing === false && (!import.meta.env.DEV || !DEV_NO_AUTO_SYNC)) {
                 startSync();
             }
-
         }
     }
 
@@ -81,7 +77,7 @@ export const useSession = defineStore("session", () => {
         await api.post("/sync", {
             from: from?.toISOString(),
             to: to?.toISOString(),
-            runtracker_timezone: include_runtracker ? timezone : undefined
+            runtracker_timezone: include_runtracker ? timezone : undefined,
         } as SyncParams);
 
         streamSyncEvents();
@@ -164,8 +160,12 @@ export const useSession = defineStore("session", () => {
     // Finds the oldest run and fetches [syncSizeInDays] days of runs before that. Returns true if any runs were
     // fetched.
     async function getPreviousRuns(): Promise<boolean> {
-        const toTimestamp = runs.value.length > 0 ?
-            runs.value.reduce((min, cur) => Temporal.ZonedDateTime.compare(cur.start_time, min.start_time) < 0 ? cur : min).start_time : Temporal.Now.zonedDateTimeISO("UTC");
+        const toTimestamp =
+            runs.value.length > 0
+                ? runs.value.reduce((min, cur) =>
+                      Temporal.ZonedDateTime.compare(cur.start_time, min.start_time) < 0 ? cur : min,
+                  ).start_time
+                : Temporal.Now.zonedDateTimeISO("UTC");
         return await getRuns(toTimestamp.subtract({ days: syncSizeInDays }), toTimestamp);
     }
 
@@ -180,6 +180,6 @@ export const useSession = defineStore("session", () => {
         syncState,
         lastSynced,
         getRuns,
-        getPreviousRuns
+        getPreviousRuns,
     };
 });

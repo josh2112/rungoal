@@ -1,5 +1,4 @@
 import asyncio
-import contextlib
 from collections.abc import AsyncIterable
 from datetime import datetime
 from enum import StrEnum
@@ -8,20 +7,13 @@ from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 from pydantic import BaseModel, Field
-from sqlmodel import Session
 
 from rungoal.crud import get_user
-from rungoal.database import get_engine
+from rungoal.database import get_db
 from rungoal.google import GoogleHealthClient
 from rungoal.settings import settings
 from rungoal.sync import sync_runs
 from rungoal.utils import ProgressProtocol, TimeRange
-
-
-@contextlib.contextmanager
-def get_db():
-    with Session(get_engine()) as session:
-        yield session
 
 
 class SyncTasks(StrEnum):

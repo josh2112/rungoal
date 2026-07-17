@@ -2,8 +2,8 @@ name: Build & Deploy to josh2112.com/rungoal
 
 on:
     # Build when I push to master
-    push:
-        branches: [master]
+    #push:
+    #    branches: [master]
     # Build manually (via Actions button)
     workflow_dispatch:
 

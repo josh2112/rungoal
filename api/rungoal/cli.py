@@ -1,4 +1,3 @@
-import contextlib
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
@@ -6,10 +5,10 @@ from zoneinfo import ZoneInfo
 
 import typer
 from rich.progress import Progress as RichProgress
-from sqlmodel import Session, col, select
+from sqlmodel import col, select
 
 from rungoal.crud import get_user
-from rungoal.database import get_engine
+from rungoal.database import get_db
 from rungoal.google import GoogleHealthClient
 from rungoal.models import (
     Run,
@@ -45,12 +44,6 @@ class CliProgress(ProgressProtocol):
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.state.__exit__(exc_type, exc_value, traceback)
-
-
-@contextlib.contextmanager
-def get_db():
-    with Session(get_engine()) as session:
-        yield session
 
 
 @app.command(
@@ -161,9 +154,8 @@ def cmd_del_recent_runs(user_id: int, count: int = 1):
     "init-db", help="Deletes and recreates the database, optionally recreating revision data."
 )
 def cmd_init_db(regen: bool = False):
-    from alembic.config import Config
-
     from alembic import command
+    from alembic.config import Config
 
     alembic_config = Config("alembic.ini")
 
