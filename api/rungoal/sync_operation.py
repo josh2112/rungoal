@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from rungoal.crud import get_user
 from rungoal.database import get_db
 from rungoal.google import GoogleHealthClient
+from rungoal.models import Error
 from rungoal.settings import settings
 from rungoal.sync import sync_runs
 from rungoal.utils import ProgressProtocol, TimeRange
@@ -35,6 +36,7 @@ class SyncState(BaseModel):
     is_syncing: bool = True
     synced_from: datetime | None = None
     synced_to: datetime | None = None
+    error: Error | None = None
 
 
 class WebProgress(ProgressProtocol):
@@ -62,6 +64,11 @@ class WebProgress(ProgressProtocol):
         self.state.is_syncing = False
         self.state.synced_from = span.start
         self.state.synced_to = span.end
+        self._broadcast()
+
+    def set_error(self, exc: Exception) -> None:
+        self.state.error = Error(title="Something went wrong...", detail=str(exc))
+        self.state.is_syncing = False
         self._broadcast()
 
     def subscribe(self) -> asyncio.Queue:
@@ -123,8 +130,7 @@ class SyncOperation:
         try:
             await asyncio.to_thread(self._run_sync_thread, params)
         except Exception as e:
-            e.add_note(f"userid={params.user_id}")
-            raise
+            self.progress.set_error(e)
         finally:
             await asyncio.sleep(0.2)  # Give the sync-complete message a chance to be sent
             # Notify everyone we're complete

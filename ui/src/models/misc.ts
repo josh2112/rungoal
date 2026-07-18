@@ -24,7 +24,6 @@ export interface SyncParams {
     runtracker_timezone?: string;
 }
 
-
 interface SyncStateDTO {
     is_syncing: boolean;
     tasks: {
@@ -34,6 +33,7 @@ interface SyncStateDTO {
     }[];
     synced_from?: string;
     synced_to?: string;
+    error?: ErrorResponse;
 }
 
 export interface SyncState extends Omit<SyncStateDTO, "synced_from" | "synced_to"> {

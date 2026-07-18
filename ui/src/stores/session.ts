@@ -3,8 +3,15 @@ import { defineStore } from "pinia";
 import { Temporal } from "temporal-polyfill";
 import { onMounted, ref } from "vue";
 import { syncSizeInDays } from "../consts";
-import { toGoal, type Goal, type GoalCreate, type GoalDTO } from "../models/goal";
-import { toSyncState, type Settings, type SyncParams, type SyncState, type User } from "../models/misc";
+import { toGoal, type Goal, type GoalDTO } from "../models/goal";
+import {
+    toSyncState,
+    type ErrorResponse,
+    type Settings,
+    type SyncParams,
+    type SyncState,
+    type User,
+} from "../models/misc";
 import { toRun, type Run } from "../models/run";
 import { useApi } from "./api";
 import { useDialogs } from "./dialogs";
@@ -95,26 +102,36 @@ export const useSession = defineStore("session", () => {
             async onmessage(msg) {
                 const state = toSyncState(JSON.parse(msg.data));
                 syncState.value = state;
-                if (!state.is_syncing && state.synced_from && state.synced_to) {
-                    console.log(`Sync complete: ${state.synced_from} -> ${state.synced_to}`);
-                    ctrl.abort();
 
-                    lastSynced.value = Date.now();
-
-                    // Auto-fetch the newly-synced runs (up to 4 weeks if this was a first-time sync).
-                    let from = Temporal.Instant.from(state.synced_from).toZonedDateTimeISO("UTC");
-                    const to = Temporal.Instant.from(state.synced_to).toZonedDateTimeISO("UTC");
-
-                    if (from.until(to).days > syncSizeInDays) {
-                        from = to.subtract({ days: syncSizeInDays });
+                if (!state.is_syncing) {
+                    if (state.error) {
+                        console.log("Sync error:", state.error);
+                        api.errors.push(state.error);
+                    } else {
+                        console.log(`Sync complete: ${state.synced_from} -> ${state.synced_to}`);
                     }
 
-                    getGoals();
-                    getRuns(from, to);
+                    ctrl.abort();
+                    lastSynced.value = Date.now();
+
+                    if (state.synced_from && state.synced_to) {
+                        // Auto-fetch the newly-synced runs (up to 4 weeks if this was a first-time sync).
+                        let from = Temporal.Instant.from(state.synced_from).toZonedDateTimeISO("UTC");
+                        const to = Temporal.Instant.from(state.synced_to).toZonedDateTimeISO("UTC");
+
+                        if (from.until(to).days > syncSizeInDays) {
+                            from = to.subtract({ days: syncSizeInDays });
+                        }
+
+                        getGoals();
+                        getRuns(from, to);
+                    }
                 }
             },
             onerror(err) {
-                console.error("Error in sync event source:", err);
+                console.error("Sync error:", err);
+                api.errors.push({ title: "Sync error", detail: err.message } as ErrorResponse);
+                throw err;
             },
         });
     }
@@ -126,12 +143,6 @@ export const useSession = defineStore("session", () => {
     async function getGoals() {
         _set_goals((await api.get("/goals")).data as []);
     }
-
-    async function addGoal(goal: GoalCreate) {
-        _set_goals((await api.post("/goals", goal)).data as []);
-    }
-
-    async function updateGoal()
 
     async function getRuns(from: Temporal.ZonedDateTime, to: Temporal.ZonedDateTime): Promise<boolean> {
         from = from.round({ smallestUnit: "second" });
@@ -173,8 +184,8 @@ export const useSession = defineStore("session", () => {
         const toTimestamp =
             runs.value.length > 0
                 ? runs.value.reduce((min, cur) =>
-                    Temporal.ZonedDateTime.compare(cur.start_time, min.start_time) < 0 ? cur : min,
-                ).start_time
+                      Temporal.ZonedDateTime.compare(cur.start_time, min.start_time) < 0 ? cur : min,
+                  ).start_time
                 : Temporal.Now.zonedDateTimeISO("UTC");
         return await getRuns(toTimestamp.subtract({ days: syncSizeInDays }), toTimestamp);
     }

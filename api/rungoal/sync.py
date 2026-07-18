@@ -1,13 +1,14 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
-from typing import Annotated, cast
+from typing import Annotated
 from zoneinfo import ZoneInfo
 
 import httpx
 import typer
 from sqlalchemy import func
 from sqlalchemy.dialects.sqlite import insert
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session, col, delete, select
 
 from rungoal.google import GoogleHealthClient
@@ -54,7 +55,6 @@ def sync_runs(
     tcx: bool = True,
     wx: bool = True,
 ) -> TimeRange:
-
     if runtracker_db_path:
         if not runtracker_tz:
             raise Exception("Please supply a time zone for Runtracker imports")
@@ -112,7 +112,10 @@ def sync_runs(
     if wx:
         sync_wx(client.db, progress, updated_runs)
     if runtracker_db_path:
-        sync_runtracker(client, progress, runtracker_db_path, runtracker_tz)
+        try:
+            sync_runtracker(client, progress, runtracker_db_path, runtracker_tz)
+        except SQLAlchemyError as e:
+            raise Exception("Unable to open Runtracker database") from e
 
     return span
 
@@ -180,6 +183,7 @@ def sync_runtracker(
         rt_user = rt_db.exec(
             select(RuntrackerUser).where(RuntrackerUser.email == client.user.email)
         ).first()
+
         if not rt_user:
             print(f"No user with email '{client.user.email}' found in RunTracker database.")
             return
