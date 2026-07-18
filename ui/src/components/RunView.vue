@@ -19,7 +19,9 @@ const stats = computed(() => toRunStats(props.run, session.settings!.distance_un
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h5>{{ stats.date_str }}</h5>
+                        <h5>
+                            <a class="text-decoration-none">{{ stats.date_str }}</a>
+                        </h5>
                         <div v-if="stats.run.calories">{{ stats.run.calories }} cal</div>
                     </div>
                     <div class="text-end">

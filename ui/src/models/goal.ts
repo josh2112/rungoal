@@ -17,7 +17,11 @@ export interface GoalCreate extends GoalLocal {
 }
 
 export interface GoalUpdate extends GoalCreate {
-    id: number
+    id: number;
+}
+
+export interface Goal extends GoalUpdate {
+    current_distance_meters: number;
 }
 
 interface GoalRemote {
@@ -29,11 +33,6 @@ export interface GoalDTO extends GoalRemote {
     id: number;
     distance_meters: number;
     current_distance_meters: number;
-}
-
-export interface Goal extends Omit<GoalDTO, "start_date" | "end_date"> {
-    start_date: Temporal.PlainDate;
-    end_date: Temporal.PlainDate;
 }
 
 export interface GoalStats {
@@ -54,9 +53,8 @@ export interface GoalStats {
 export const toGoal = (dto: GoalDTO): Goal => ({
     ...dto,
     start_date: Temporal.PlainDate.from(dto.start_date),
-    end_date: Temporal.PlainDate.from(dto.end_date)
-})
-
+    end_date: Temporal.PlainDate.from(dto.end_date),
+});
 
 export function toGoalStats(goal: Goal, distUnit: DistanceUnit): GoalStats {
     const today = Temporal.Now.plainDateISO();
@@ -80,9 +78,10 @@ export function toGoalStats(goal: Goal, distUnit: DistanceUnit): GoalStats {
 
         remaining_pace: distance((goal.distance_meters - goal.current_distance_meters) / daysRemaining),
 
-        current_pace_diff: distance(goal.current_distance_meters - (1 - daysRemaining / daysTotal) * goal.distance_meters),
+        current_pace_diff: distance(
+            goal.current_distance_meters - (1 - daysRemaining / daysTotal) * goal.distance_meters,
+        ),
 
-        percent: goal.current_distance_meters / goal.distance_meters * 100
+        percent: (goal.current_distance_meters / goal.distance_meters) * 100,
     } as GoalStats;
 }
-

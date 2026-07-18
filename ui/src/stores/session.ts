@@ -3,7 +3,7 @@ import { defineStore } from "pinia";
 import { Temporal } from "temporal-polyfill";
 import { onMounted, ref } from "vue";
 import { syncSizeInDays } from "../consts";
-import { toGoal, type Goal, type GoalDTO } from "../models/goal";
+import { toGoal, type Goal, type GoalCreate, type GoalDTO, type GoalUpdate } from "../models/goal";
 import {
     toSyncState,
     type ErrorResponse,
@@ -144,6 +144,28 @@ export const useSession = defineStore("session", () => {
         _set_goals((await api.get("/goals")).data as []);
     }
 
+    async function addGoal(goal: GoalCreate) {
+        const response = await api.post("/goals", {
+            ...goal,
+            start_date: goal.start_date.toString({ calendarName: "never" }),
+            end_date: goal.end_date.toString({ calendarName: "never" }),
+        });
+        _set_goals(response.data as []);
+    }
+
+    async function updateGoal(goal: GoalUpdate) {
+        const response = await api.patch(`/goals/${goal.id}`, {
+            ...goal,
+            start_date: goal.start_date.toString({ calendarName: "never" }),
+            end_date: goal.end_date.toString({ calendarName: "never" }),
+        });
+        _set_goals(response.data as []);
+    }
+
+    async function deleteGoal(goal: Goal) {
+        await api.delete(`/goals/${goal.id}`);
+    }
+
     async function getRuns(from: Temporal.ZonedDateTime, to: Temporal.ZonedDateTime): Promise<boolean> {
         from = from.round({ smallestUnit: "second" });
         to = to.round({ smallestUnit: "second" });
@@ -195,6 +217,9 @@ export const useSession = defineStore("session", () => {
         settings,
         runs,
         goals,
+        addGoal,
+        updateGoal,
+        deleteGoal,
         logIn,
         logOut,
         startSync,

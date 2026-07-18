@@ -44,11 +44,7 @@ const DistanceUnitData = {
 
 export type DistanceUnit = keyof typeof DistanceUnitData;
 
-export function distanceConvert(
-    val: number,
-    from: DistanceUnit,
-    to: DistanceUnit,
-) {
+export function distanceConvert(val: number, from: DistanceUnit, to: DistanceUnit) {
     return (val * DistanceUnitData[from].toBase) / DistanceUnitData[to].toBase;
 }
 

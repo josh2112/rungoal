@@ -111,5 +111,13 @@ export const useApi = defineStore("api", () => {
 
     const syncEventStreamUrl = `${api.defaults.baseURL}/sync/stream`;
 
-    return { get: api.get, post: api.post, accessToken, errors, syncEventStreamUrl };
+    return {
+        get: api.get,
+        post: api.post,
+        patch: api.patch,
+        delete: api.delete,
+        accessToken,
+        errors,
+        syncEventStreamUrl,
+    };
 });

@@ -132,7 +132,7 @@ def update_goal(db: DepDb, user: DepUser, goal_id: int, goal: GoalUpdate) -> lis
     return get_goals(db, user)
 
 
-@api.delete("/goals/{gial_id}")
+@api.delete("/goals/{goal_id}")
 def delete_goal(db: DepDb, user: DepUser, goal_id: int):
     crud.delete_goal(db, cast(int, user.id), goal_id)
     return status.HTTP_200_OK
