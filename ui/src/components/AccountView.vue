@@ -6,7 +6,7 @@ const session = useSession();
 
 <template>
     <div v-if="session.user" class="account-box">
-        <img class="avatar" :src="`${session.user.avatar_uri}=s64-c`" />
+        <img class="avatar-circle-64" :src="`${session.user.avatar_uri}=s64-c`" />
         <div>
             <div class="user-name">
                 {{ session.user.name }}
@@ -17,7 +17,7 @@ const session = useSession();
 </template>
 
 <style scoped>
-.avatar {
+.avatar-circle-64 {
     width: 64px;
     height: 64px;
     border-radius: 32px;

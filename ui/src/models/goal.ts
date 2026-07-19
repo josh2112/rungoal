@@ -76,7 +76,7 @@ export function toGoalStats(goal: Goal, distUnit: DistanceUnit): GoalStats {
         elapsed_days: goal.start_date.until(today).days + 1,
         remaining_days: daysRemaining,
 
-        remaining_pace: distance((goal.distance_meters - goal.current_distance_meters) / daysRemaining),
+        remaining_pace: distance(Math.max(0, (goal.distance_meters - goal.current_distance_meters) / daysRemaining)),
 
         current_pace_diff: distance(
             goal.current_distance_meters - (1 - daysRemaining / daysTotal) * goal.distance_meters,

@@ -16,11 +16,15 @@ const progress = computed(() => (stats.value.goal.current_distance_meters / stat
 
 <template>
     <div class="col-lg-6">
-        <div class="card bg-body-tertiary rounded-4 border-0">
+        <div class="card bg-body-tertiary rounded-4 border-0 hover-highlight">
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <h5>
-                        <a href="#" class="stretched-link text-decoration-none">{{ stats.name }}</a>
+                        <RouterLink
+                            :to="`/goal/${session.goals.indexOf(goal) + 1}`"
+                            class="stretched-link text-decoration-none text-primary-emphasis"
+                            >{{ stats.name }}</RouterLink
+                        >
                     </h5>
                     <h5
                         class="text-end"
@@ -55,3 +59,13 @@ const progress = computed(() => (stats.value.goal.current_distance_meters / stat
         </div>
     </div>
 </template>
+
+<style scoped>
+.hover-highlight {
+    transition: background-color 0.2s ease-in-out;
+}
+
+.hover-highlight:hover {
+    background-color: rgba(var(--bs-secondary-bg-rgb), 0.6) !important;
+}
+</style>

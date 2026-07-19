@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { useSession } from "../stores/session";
-import RunView from "./RunView.vue";
+import RunCard from "./RunCard.vue";
 const session = useSession();
 </script>
 
 <template>
     <div class="row gy-3">
-        <RunView v-for="run in session.runs" :key="run.id" :run="run" />
+        <RunCard v-for="run in session.runs" :key="run.id" :run="run" />
     </div>
 </template>
