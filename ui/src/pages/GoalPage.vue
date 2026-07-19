@@ -7,7 +7,6 @@ import { useSession } from "../stores/session";
 import { formatDec } from "../utils";
 
 const route = useRoute();
-
 const session = useSession();
 
 const goal = computed(() => session.goals[+route.params.index - 1]);
@@ -15,9 +14,7 @@ const stats = computed(() => toGoalStats(goal.value, session.settings!.distance_
 
 const progress = computed(() => (stats.value.goal.current_distance_meters / stats.value.goal.distance_meters) * 100);
 
-onMounted(() => {
-    navbarState.title = goal.value.start_date.toString();
-});
+onMounted(() => (navbarState.title = stats.value.goal.name));
 </script>
 
 <template>
@@ -25,7 +22,7 @@ onMounted(() => {
         <div class="col-lg-6">
             <div class="d-flex justify-content-between">
                 <h5>
-                    {{ stats.name }}
+                    {{ stats.goal.name }}
                 </h5>
                 <h5
                     class="text-end"

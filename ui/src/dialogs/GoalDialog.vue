@@ -5,7 +5,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import type { Goal, GoalCreate, GoalUpdate } from "../models/goal.ts";
 import { useDialogs } from "../stores/dialogs.ts";
 import { useSession } from "../stores/session.ts";
-import { distanceAbbr, distanceConvert } from "../utils.ts";
+import { currentLocale, distanceAbbr, distanceConvert } from "../utils.ts";
 
 const props = defineProps<{
     goal: Goal | undefined;
@@ -90,6 +90,23 @@ const distance = computed({
 
 const spanType = ref<"year" | "month" | "custom">("custom");
 
+const formatGoalTitle = () => {
+    let name = `${goal.value.start_date.toLocaleString(currentLocale, { dateStyle: "long" })}: `;
+    const diff = goal.value.start_date.until(goal.value.end_date).round({ largestUnit: "years" });
+
+    if (diff.years > 0 && diff.months == 0 && diff.days == 0) {
+        name = `${name} ${diff.years} year${diff.years == 1 ? "" : "s"}`;
+    } else if (diff.months > 0 && diff.days == 0) {
+        name = `${name} ${diff.months} month${diff.months == 1 ? "" : "s"}`;
+    } else if (!(diff.days % 7)) {
+        name = `${name} ${diff.days / 7} week${diff.days / 7 == 1 ? "" : "s"}`;
+    } else {
+        name = `${name} ${diff.days} day${diff.days == 1 ? "" : "s"}`;
+    }
+
+    return name;
+};
+
 const onRadioChanged = () => {
     const today = Temporal.Now.plainDateISO();
 
@@ -98,11 +115,15 @@ const onRadioChanged = () => {
             goal.value.start_date = today.with({ month: 1, day: 1 });
             goal.value.end_date = today.with({ month: 12, day: 31 });
             console.log(goal.value.start_date);
+            goal.value.name = `Year of ${goal.value.start_date.year}`;
             break;
         case "month":
             goal.value.start_date = today.with({ day: 1 });
             goal.value.end_date = today.with({ day: today.daysInMonth });
+            goal.value.name = `Month of ${goal.value.start_date.toLocaleString(currentLocale, { month: "long" })}`;
             break;
+        case "custom":
+            goal.value.name = formatGoalTitle();
     }
 };
 </script>

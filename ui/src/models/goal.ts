@@ -1,5 +1,5 @@
 import { Temporal } from "temporal-polyfill";
-import { currentLocale, distanceAbbr, distanceConvert, type DistanceUnit } from "../utils";
+import { distanceAbbr, distanceConvert, type DistanceUnit } from "../utils";
 
 // need to think about this.
 // goal creation needs: start/end date (set as temporal, converted to string), distance
@@ -14,6 +14,7 @@ interface GoalLocal {
 
 export interface GoalCreate extends GoalLocal {
     distance_meters: number;
+    name: string;
 }
 
 export interface GoalUpdate extends GoalCreate {
@@ -33,12 +34,12 @@ export interface GoalDTO extends GoalRemote {
     id: number;
     distance_meters: number;
     current_distance_meters: number;
+    name: string;
 }
 
 export interface GoalStats {
     goal: Goal;
     dist_abbr: string;
-    name: string;
     total_dist: number;
     current_dist: number;
     remaining_dist: number;
@@ -66,7 +67,6 @@ export function toGoalStats(goal: Goal, distUnit: DistanceUnit): GoalStats {
     return {
         goal: goal,
         dist_abbr: distanceAbbr(distUnit),
-        name: goal.start_date.toLocaleString(currentLocale, { dateStyle: "full" }),
 
         total_dist: distance(goal.distance_meters),
         current_dist: distance(goal.current_distance_meters),

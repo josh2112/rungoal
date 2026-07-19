@@ -162,6 +162,7 @@ class TrackPoint(SQLModel, table=True):
 class GoalCreate(SQLModel):
     start_date: date
     end_date: date
+    name: str
     distance_meters: float = Field(gt=0)
 
     @model_validator(mode="after")
@@ -183,6 +184,7 @@ class GoalUpdate(BaseModel):
     start_date: date | None = None
     end_date: date | None = None
     distance_meters: float | None
+    name: str | None = None
 
 
 class Goal(GoalCreate, table=True):
