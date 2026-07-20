@@ -14,7 +14,7 @@ with open("pyproject.toml", "rb") as f:
     metadata = tomllib.load(f)["project"]
 
 app = FastAPI(
-    root_path=settings.BASE_URL,
+    root_path="/rungoal",
     title=metadata["name"],
     description=metadata["description"],
     version=metadata["version"],
