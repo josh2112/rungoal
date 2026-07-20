@@ -5,6 +5,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(frozen=True, env_file="../.env", extra="ignore")
 
     # Required
+    BASE_URL: str
+
     JWT_ACCESS_TOKEN_KEY: str
     JWT_REFRESH_TOKEN_KEY: str
     GOOGLE_REFRESH_TOKEN_KEY: str

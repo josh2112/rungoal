@@ -2,8 +2,8 @@ name: Build & Deploy to josh2112.com/rungoal
 
 on:
     # Build when I push to master
-    #push:
-    #    branches: [master]
+    push:
+        branches: [master]
     # Build manually (via Actions button)
     workflow_dispatch:
 
@@ -43,10 +43,13 @@ jobs:
                     "${{ vars.HOST }}" "${{ vars.HOST }}" "${{ secrets.USERNAME }}" > ~/.ssh/config
                   chmod 600 ~/.ssh/config
 
+            - name: Stop backend service
+              run: ssh ${{ vars.HOST }} "nfsn stop-daemon rungoal"
+
             - name: Deploy
               run: |
                   rsync -avzR --delete \
-                  --exclude="daemon.sh" --exclude=".env" --exclude="client_secret.json" --exclude="/api/.venv" --exclude="/data" \
+                  --exclude-from='.rsyncignore' \
                   ui/dist/ \
                   api/ \
                   run-nfsn.sh \
@@ -55,12 +58,6 @@ jobs:
             - name: Refresh Python venv
               # Set proces timeout to 10 minutes, rust builds can be very slow
               run: ssh ${{ vars.HOST }} "cd $DEST_PATH/api && ulimit -t 600 && uv sync --frozen --no-dev"
-
-            - name: Stop backend service
-              run: ssh ${{ vars.HOST }} "nfsn stop-daemon rungoal"
-
-            - name: Create/migrate DB
-              run: ssh ${{ vars.HOST }} "cd $DEST_PATH/api && mkdir -p ../data && uv run alembic upgrade head && chgrp -R web ../data && chmod -R g+w ../data"
 
             - name: Restart backend service
               run: ssh ${{ vars.HOST }} "chmod a+x $DEST_PATH/run-nfsn.sh && nfsn start-daemon rungoal"

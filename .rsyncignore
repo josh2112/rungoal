@@ -1,0 +1,10 @@
+.env
+*.db
+client_secrets.json
+
+.git/
+.github/
+.gitignore
+.rsyncignore
+
+*.code-workspace

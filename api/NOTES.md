@@ -1,13 +1,4 @@
 ## TODO
-
-There's always a problem. Now the syncer never finishes, never sets is_synced to True; just stops responding.
-Looks like there's a problem with the database after syncing is all finished... but with the
-code in place for creating the DB at startup, no more log info gets printed out...
-
-Also figure out how to put "/rungoal" path in .env
-
-### Flow
-
 Features:
 
 - Figure out likely running location (Sherman Branch, Veteran's Park, etc.) computed from GPS track

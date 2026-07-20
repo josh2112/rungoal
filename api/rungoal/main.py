@@ -1,4 +1,4 @@
-from importlib.metadata import version
+import tomllib
 
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
@@ -10,14 +10,19 @@ from rungoal.settings import settings
 
 # ================ Init ================
 
+with open("pyproject.toml", "rb") as f:
+    metadata = tomllib.load(f)["project"]
+
 app = FastAPI(
-    title="RunGoal",
-    version=version("rungoal"),
-    docs_url="/api/docs",
+    root_path=settings.BASE_URL,
+    title=metadata["name"],
+    description=metadata["description"],
+    version=metadata["version"],
+    contact=metadata["authors"][0],
     redoc_url=None,
 )
 
-app.include_router(api, prefix="/rungoal")
+app.include_router(api)
 
 # Allow calls from the frontend on a different origin (not needed for production?)
 if settings.DEV:
