@@ -1,6 +1,9 @@
 .env
-*.db
 client_secrets.json
+/data
+
+/api/.venv
+/*.sh
 
 .git/
 .github/
