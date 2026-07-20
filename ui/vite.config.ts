@@ -10,7 +10,7 @@ const BASE_URL = "/rungoal";
 // https://vite.dev/config/
 export default defineConfig({
     plugins: [vue(), svgLoader()],
-    base: `${BASE_URL}/`,
+    base: `${BASE_URL}`,
     define: {
         "import.meta.env.APP_VERSION": JSON.stringify(packageJson.version),
     },
