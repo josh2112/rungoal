@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { useFetchMore } from "../fetch_more";
+import { useFetchMore } from "../composables/fetchMore";
 import { useSession } from "../stores/session";
 
 const session = useSession();

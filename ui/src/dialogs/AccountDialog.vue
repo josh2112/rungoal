@@ -1,27 +1,14 @@
 <script setup lang="ts">
-import { Modal } from "bootstrap";
-import { onMounted, ref, watch } from "vue";
+import { ref } from "vue";
 import AccountView from "../components/AccountView.vue";
-import { useDialogs } from "../stores/dialogs";
+import { useDialog } from "../composables/dialog.ts";
 import { useSession } from "../stores/session";
 
 const session = useSession();
-const dialogs = useDialogs();
 
 const dialogRef = ref<Element>();
-let dialog: Modal | null = null;
-
-onMounted(() => (dialog = new Modal(dialogRef.value!)));
-
-watch(() => dialogs.isAccountDialogOpen, (isOpen) => {
-    if (isOpen) dialog?.show();
-    else dialog?.hide();
-});
-
-const close = () => {
-    (document.activeElement as HTMLElement)?.blur();
-    dialogs.isAccountDialogOpen = false;
-}
+const { open, close } = useDialog(dialogRef);
+defineExpose({ open })
 
 const closeAndLogOut = () => {
     close();

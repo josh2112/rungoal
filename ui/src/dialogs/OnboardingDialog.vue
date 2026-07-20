@@ -1,29 +1,19 @@
 <script setup lang="ts">
-import { Modal } from "bootstrap";
-import { onMounted, ref, watch } from "vue";
+import { ref } from "vue";
 import AccountView from "../components/AccountView.vue";
-import { useDialogs } from "../stores/dialogs";
+import { useDialog } from "../composables/dialog.ts";
 import { useSession } from "../stores/session";
 
 const session = useSession();
-const dialogs = useDialogs();
-
-const dialogRef = ref<Element>();
-let dialog: Modal | null = null;
-
-onMounted(() => (dialog = new Modal(dialogRef.value!)));
-
-watch(() => dialogs.isOnboardingDialogOpen, (isOpen) => {
-    if (isOpen) dialog?.show();
-    else dialog?.hide();
-});
-
 
 const onboardingIncludeRuntracker = ref(true);
 
+const dialogRef = ref<Element>();
+const { open, close } = useDialog(dialogRef);
+defineExpose({ open })
+
 const startFirstSync = () => {
-    (document.activeElement as HTMLElement)?.blur();
-    dialogs.isOnboardingDialogOpen = false;
+    close();
     session.startSync(undefined, undefined, onboardingIncludeRuntracker.value);
 };
 </script>
@@ -39,8 +29,8 @@ const startFirstSync = () => {
                 <div class="modal-body">
                     <p>We'll sync run data from Google Health for this account:</p>
                     <AccountView />
-                    <input type="checkbox" id="includRuntrackerId" v-model="onboardingIncludeRuntracker" />
-                    <label for="includRuntrackerId" class="ms-2 pt-4">Also sync data from Runtracker</label>
+                    <input type="checkbox" id="includeRuntrackerId" v-model="onboardingIncludeRuntracker" />
+                    <label for="includeRuntrackerId" class="ms-2 pt-4">Also sync data from Runtracker</label>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-primary" data-bs-dismiss="modal"

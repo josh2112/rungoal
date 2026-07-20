@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { Modal } from "bootstrap";
 import { Temporal } from "temporal-polyfill";
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref } from "vue";
+import { useDialog } from "../composables/dialog.ts";
 import type { Goal, GoalCreate, GoalUpdate } from "../models/goal.ts";
-import { useDialogs } from "../stores/dialogs.ts";
 import { useSession } from "../stores/session.ts";
-import { currentLocale, distanceAbbr, distanceConvert } from "../utils.ts";
+import { currentLocale, distanceAbbr, distanceConvert, formatDec } from "../utils.ts";
 
 const props = defineProps<{
     goal: Goal | undefined;
@@ -23,13 +22,13 @@ const goal = ref<Goal | GoalCreate>({
 const isUpdate = computed(() => "id" in goal.value);
 
 const session = useSession();
-const dialogs = useDialogs();
 
 const dialogRef = ref<Element>();
-let dialog: Modal | null = null;
+const { open, close } = useDialog(dialogRef);
+defineExpose({ open })
+
 
 onMounted(() => {
-    dialog = new Modal(dialogRef.value!);
     if (props.goal) {
         goal.value = props.goal;
     } else {
@@ -39,25 +38,12 @@ onMounted(() => {
     }
 });
 
-watch(
-    () => dialogs.isGoalDialogOpen,
-    (isOpen) => {
-        if (isOpen) dialog?.show();
-        else dialog?.hide();
-    },
-);
-
-const close = () => {
-    (document.activeElement as HTMLElement)?.blur();
-    dialogs.isGoalDialogOpen = false;
-};
-
 const submit = () => {
     close();
-    if (isUpdate) {
-        session.addGoal(goal.value);
-    } else {
+    if (isUpdate.value) {
         session.updateGoal(goal.value as GoalUpdate);
+    } else {
+        session.addGoal(goal.value);
     }
 };
 
@@ -67,6 +53,7 @@ const startDate = computed({
     },
     set(value) {
         goal.value.start_date = Temporal.PlainDate.from(value);
+        onRadioChanged();
     },
 });
 
@@ -76,6 +63,7 @@ const endDate = computed({
     },
     set(value) {
         goal.value.end_date = Temporal.PlainDate.from(value);
+        onRadioChanged();
     },
 });
 
@@ -88,23 +76,25 @@ const distance = computed({
     },
 });
 
+const durationDays = computed(() => goal.value.start_date.until(goal.value.end_date).days + 1);
+
 const spanType = ref<"year" | "month" | "custom">("custom");
 
+const formatDuration = (length: number, name: string) => length ? `${length} ${name}${length == 1 ? "" : "s"}` : "";
+
 const formatGoalTitle = () => {
-    let name = `${goal.value.start_date.toLocaleString(currentLocale, { dateStyle: "long" })}: `;
-    const diff = goal.value.start_date.until(goal.value.end_date).round({ largestUnit: "years" });
+    let start = `${goal.value.start_date.toLocaleString(currentLocale, { dateStyle: "long" })}: `;
+    const diff = goal.value.start_date.until(goal.value.end_date.add({ days: 1 })).round({
+        largestUnit: "year",
+        relativeTo: goal.value.start_date
+    });
 
-    if (diff.years > 0 && diff.months == 0 && diff.days == 0) {
-        name = `${name} ${diff.years} year${diff.years == 1 ? "" : "s"}`;
-    } else if (diff.months > 0 && diff.days == 0) {
-        name = `${name} ${diff.months} month${diff.months == 1 ? "" : "s"}`;
-    } else if (!(diff.days % 7)) {
-        name = `${name} ${diff.days / 7} week${diff.days / 7 == 1 ? "" : "s"}`;
-    } else {
-        name = `${name} ${diff.days} day${diff.days == 1 ? "" : "s"}`;
-    }
+    const years = formatDuration(diff.years, "year"), months = formatDuration(diff.months, "month"),
+        weeks = formatDuration(diff.days / 7, "week"), days = formatDuration(diff.days, "days");
 
-    return name;
+    const durations = [years, months, weeks, days].filter((v) => v).join(' ')
+
+    return `${start} ${durations}`;
 };
 
 const onRadioChanged = () => {
@@ -120,7 +110,7 @@ const onRadioChanged = () => {
         case "month":
             goal.value.start_date = today.with({ day: 1 });
             goal.value.end_date = today.with({ day: today.daysInMonth });
-            goal.value.name = `Month of ${goal.value.start_date.toLocaleString(currentLocale, { month: "long" })}`;
+            goal.value.name = `${goal.value.start_date.toLocaleString(currentLocale, { month: "long" })} ${goal.value.start_date.year}`;
             break;
         case "custom":
             goal.value.name = formatGoalTitle();
@@ -139,81 +129,47 @@ const onRadioChanged = () => {
                     </div>
                     <div class="modal-body">
                         <div class="form-floating">
-                            <input
-                                type="number"
-                                class="form-control"
-                                id="distance"
-                                placeholder="_"
-                                min="1"
-                                max="10000"
-                                required
-                                v-model.number="distance"
-                            />
-                            <label for="distance">Distance ({{ distanceAbbr(session.settings.distance_unit) }})</label>
+                            <input type="text" class="form-control" id="name" placeholder="_" required
+                                v-model.number="goal.name" />
+                            <label for="name">Name</label>
                         </div>
 
-                        <div class="my-3">
-                            <div class="form-check">
-                                <input
-                                    id="thisYear"
-                                    type="radio"
-                                    class="form-check-input"
-                                    name="radioGroup"
-                                    value="year"
-                                    v-model="spanType"
-                                    @change="onRadioChanged"
-                                /><label class="form-check-label" for="thisYear">This year</label>
-                            </div>
-                            <div class="form-check">
-                                <input
-                                    id="thisMonth"
-                                    type="radio"
-                                    class="form-check-input"
-                                    name="radioGroup"
-                                    value="month"
-                                    v-model="spanType"
-                                    @change="onRadioChanged"
-                                /><label class="form-check-label" for="thisMonth">This month</label>
-                            </div>
-                            <div class="form-check">
-                                <input
-                                    id="custom"
-                                    type="radio"
-                                    class="form-check-input"
-                                    name="radioGroup"
-                                    value="custom"
-                                    v-model="spanType"
-                                    @change="onRadioChanged"
-                                /><label class="form-check-label" for="custom">Custom:</label>
-                            </div>
+                        <div class="form-floating mt-3 input-group">
+                            <input type="number" class="form-control" id="distance" placeholder="_" min="1" max="10000"
+                                required v-model.number="distance" />
+                            <label for="distance">Distance ({{ distanceAbbr(session.settings.distance_unit)
+                            }})</label>
+                            <span class="input-group-text">{{ formatDec(Math.max(0, distanceConvert(goal.distance_meters
+                                / durationDays, "meters",
+                                session.settings.distance_unit)), 2)
+                            }} {{ distanceAbbr(session.settings.distance_unit) }}/day</span>
+                        </div>
+
+                        <div class="btn-group my-3 d-flex justify-content-center" role="group"
+                            aria-label="Basic radio toggle button group">
+                            <input type="radio" class="btn-check" name="radioGroup" id="year" autocomplete="off"
+                                value="year" v-model="spanType" @change="onRadioChanged">
+                            <label class="btn btn-outline-primary" for="year">This year</label>
+
+                            <input type="radio" class="btn-check" name="radioGroup" id="month" autocomplete="off"
+                                value="month" v-model="spanType" @change="onRadioChanged">
+                            <label class="btn btn-outline-primary" for="month">This month</label>
+
+                            <input type="radio" class="btn-check" name="radioGroup" id="custom" autocomplete="off"
+                                value="custom" v-model="spanType" @change="onRadioChanged">
+                            <label class="btn btn-outline-primary" for="custom">Custom</label>
                         </div>
 
                         <fieldset :disabled="spanType != 'custom'">
                             <div class="form-floating">
-                                <input
-                                    type="date"
-                                    class="form-control"
-                                    id="startDate"
-                                    placeholder="_"
-                                    min="2000-01-01"
-                                    max="2100-12-31"
-                                    v-model="startDate"
-                                    required
-                                />
+                                <input type="date" class="form-control" id="startDate" placeholder="_" min="2000-01-01"
+                                    max="2100-12-31" v-model="startDate" required />
                                 <label for="startDate">Start date</label>
                             </div>
                             <div class="form-floating mt-3">
-                                <input
-                                    type="date"
-                                    class="form-control"
-                                    id="endDate"
-                                    placeholder="_"
-                                    min="2000-01-01"
-                                    max="2100-12-31"
-                                    v-model="endDate"
-                                    required
-                                />
-                                <label for="endDate">End date</label>
+                                <input type="date" class="form-control" id="endDate" placeholder="_" min="2000-01-01"
+                                    max="2100-12-31" v-model="endDate" required />
+                                <label for="endDate">End date (inclusive)</label>
                             </div>
                         </fieldset>
                     </div>

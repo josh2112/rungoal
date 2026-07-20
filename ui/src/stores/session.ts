@@ -14,13 +14,10 @@ import {
 } from "../models/misc";
 import { toRun, type Run } from "../models/run";
 import { useApi } from "./api";
-import { useDialogs } from "./dialogs";
 
 const DEV_NO_AUTO_SYNC = true;
 
 export const useSession = defineStore("session", () => {
-    const dialogs = useDialogs();
-
     const api = useApi();
 
     const user = ref<User>();
@@ -57,12 +54,7 @@ export const useSession = defineStore("session", () => {
 
         await updateSyncState();
 
-        if (!user.value!.is_onboarded) {
-            // If user is not onboarded yet (and we're not doing the initial sync), start the onboarding process
-            if (!syncState.value?.is_syncing) {
-                dialogs.isOnboardingDialogOpen = true;
-            }
-        } else {
+        if (user.value!.is_onboarded) {
             await getGoals();
 
             if (syncState.value?.is_syncing === false && (!import.meta.env.DEV || !DEV_NO_AUTO_SYNC)) {
@@ -164,6 +156,7 @@ export const useSession = defineStore("session", () => {
 
     async function deleteGoal(goal: Goal) {
         await api.delete(`/goals/${goal.id}`);
+        goals.value.splice(goals.value.indexOf(goal), 1);
     }
 
     async function getRuns(from: Temporal.ZonedDateTime, to: Temporal.ZonedDateTime): Promise<boolean> {
@@ -206,8 +199,8 @@ export const useSession = defineStore("session", () => {
         const toTimestamp =
             runs.value.length > 0
                 ? runs.value.reduce((min, cur) =>
-                      Temporal.ZonedDateTime.compare(cur.start_time, min.start_time) < 0 ? cur : min,
-                  ).start_time
+                    Temporal.ZonedDateTime.compare(cur.start_time, min.start_time) < 0 ? cur : min,
+                ).start_time
                 : Temporal.Now.zonedDateTimeISO("UTC");
         return await getRuns(toTimestamp.subtract({ days: syncSizeInDays }), toTimestamp);
     }

@@ -48,6 +48,12 @@ export const toSyncState = (dto: SyncStateDTO): SyncState => ({
     synced_to: dto.synced_to ? parseUtcDateTime(dto.synced_to) : undefined,
 });
 
+interface NavbarAction {
+    icon: string;
+    callback: () => void;
+}
+
 export const navbarState = reactive({
     title: "",
+    actions: [] as NavbarAction[]
 });

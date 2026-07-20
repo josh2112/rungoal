@@ -1,14 +1,14 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import { useRouter } from "vue-router";
 import LogoSvg from "../../assets/logo.svg";
+import AccountDialog from "../dialogs/AccountDialog.vue";
 import { navbarState } from "../models/misc.ts";
-import { useDialogs } from "../stores/dialogs.ts";
 import { useSession } from "../stores/session.ts";
 
 const session = useSession();
-const dialogs = useDialogs();
 
-const openAccountDialog = () => (dialogs.isAccountDialogOpen = true);
+const accountDialogRef = ref<InstanceType<typeof AccountDialog>>();
 
 const router = useRouter();
 
@@ -19,17 +19,22 @@ const goBack = () => {
         router.push("/");
     }
 };
+
+const fart = () => {
+    console.log("fart", accountDialogRef.value);
+    accountDialogRef.value?.open();
+}
 </script>
 
 <template>
     <nav class="navbar sticky-top bg-body-secondary">
         <div class="container d-grid gap-3 align-items-center" style="grid-template-columns: 1fr auto 1fr">
-            <div class="d-flex justify-content-start align-items-center mt-1">
+            <div class="d-flex justify-content-start mt-1">
                 <div v-if="navbarState.title" class="navbar-brand py-0">
-                    <button class="btn text-light text-decoration-none back-button" @click="goBack">
+                    <button class="btn text-light text-decoration-none navbar-button" @click="goBack">
                         <i class="bi bi-arrow-left fs-4"></i>
                     </button>
-                    {{ navbarState.title }}
+                    <span class="align-middle">{{ navbarState.title }}</span>
                 </div>
             </div>
             <div class="d-flex justify-content-center mt-1">
@@ -39,29 +44,30 @@ const goBack = () => {
                 </div>
             </div>
             <div class="d-flex justify-content-end">
-                <img
-                    v-if="session.user"
-                    class="avatar-circle-32"
-                    :src="`${session.user.avatar_uri}=s32-c`"
-                    :alt="session.user.name"
-                    @click="() => openAccountDialog()"
-                />
+                <button v-for="action in navbarState.actions" :key="action.icon"
+                    class="btn text-light text-decoration-none navbar-button" @click="() => action.callback()">
+                    <i class="bi" :class="action.icon"></i></button>
+                <a href='#' @click="() => fart()"><img v-if="session.user" class="avatar-circle-32 ms-3"
+                        :src="`${session.user.avatar_uri}=s32-c`" :alt="session.user.name" /></a>
             </div>
         </div>
     </nav>
+
+    <AccountDialog ref="accountDialogRef" />
 </template>
 
 <style scoped>
 .logo {
     height: 24px;
 }
+
 .avatar-circle-32 {
     width: 32px;
     height: 32px;
     border-radius: 50%;
 }
 
-.back-button {
+.navbar-button {
     --bs-btn-padding-y: 0.1rem;
 }
 </style>

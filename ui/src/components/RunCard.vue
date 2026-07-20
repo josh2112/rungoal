@@ -17,15 +17,18 @@ const stats = computed(() => toRunStats(props.run, session.settings!.distance_un
     <div class="col-lg-6">
         <div class="card bg-body-tertiary rounded-4 border-0">
             <div class="card-body">
-                <div class="d-flex justify-content-between">
+                <div class="d-flex justify-content-between card-title">
+                    <h5 class="text-primary-emphasis">{{ stats.date_str }}</h5>
+                    <h5 class="text-end">{{ formatDec(stats.distance, 2) }} {{ stats.dist_abbr }}</h5>
+                </div>
+                <div class="d-flex justify-content-between card-text">
                     <div>
-                        <h5 class="text-primary-emphasis">{{ stats.date_str }}</h5>
                         <div v-if="stats.run.calories">{{ stats.run.calories }} cal</div>
+
                     </div>
                     <div class="text-end">
-                        <h5>{{ formatDec(stats.distance, 2) }} {{ stats.dist_abbr }}</h5>
                         <div>{{ stats.duration_str }}</div>
-                        <div>{{ stats.pace_str }} {{ stats.dist_abbr }} / min</div>
+                        <div>{{ stats.pace_str }} min/{{ stats.dist_abbr }}</div>
                     </div>
                 </div>
             </div>
