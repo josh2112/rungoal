@@ -34,8 +34,9 @@ export const useSession = defineStore("session", () => {
 
     async function logIn(google_access_code?: string) {
         await api.post(
-            `/auth/${google_access_code ? "google" : "dev"}`,
+            "/auth/google",
             google_access_code ? { google_access_code } : undefined,
+            { headers: { 'X-Timezone': Intl.DateTimeFormat().resolvedOptions().timeZone } }
         );
 
         getMe();
@@ -71,12 +72,10 @@ export const useSession = defineStore("session", () => {
     }
 
     async function startSync(from?: Date, to?: Date, include_runtracker: boolean = false) {
-        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
         await api.post("/sync", {
             from: from?.toISOString(),
             to: to?.toISOString(),
-            runtracker_timezone: include_runtracker ? timezone : undefined,
+            include_runtracker: include_runtracker
         } as SyncParams);
 
         streamSyncEvents();

@@ -29,51 +29,48 @@ _GOOGLE_API_SCOPES = [
 
 
 @dataclass
-class Token:
+class RefreshToken:
     subject: str
     expires: datetime
 
 
-def _token_encode(subject: str, expiry_mins: int, key: str) -> str:
+@dataclass
+class AccessToken(RefreshToken):
+    timezone: str
+
+
+def _token_encode(subject: str, expiry_mins: int, timezone: str, key: str) -> str:
     return jwt.encode(
         {
             "sub": subject,
             "exp": (datetime.now(UTC) + timedelta(minutes=expiry_mins)).timestamp(),
+            "tz": timezone,
         },
         key=key,
         algorithm=_JWT_ALGORITHM,
     )
 
 
-def _token_decode(token: str, key: str) -> Token:
-    fields = jwt.decode(token, key, algorithms=[_JWT_ALGORITHM])
-    return Token(
+def access_token_decode(token: str) -> AccessToken:
+    """Decodes an access token."""
+    fields = jwt.decode(token, _settings.JWT_ACCESS_TOKEN_KEY, algorithms=[_JWT_ALGORITHM])
+    return AccessToken(
+        subject=fields["sub"],
+        expires=datetime.fromtimestamp(fields["exp"], tz=UTC),
+        timezone=fields["tz"],
+    )
+
+
+def refresh_token_decode(token: str) -> RefreshToken:
+    """Decodes a refresh token."""
+    fields = jwt.decode(token, _settings.JWT_REFRESH_TOKEN_KEY, algorithms=[_JWT_ALGORITHM])
+    return RefreshToken(
         subject=fields["sub"],
         expires=datetime.fromtimestamp(fields["exp"], tz=UTC),
     )
 
 
-def access_token_encode(subject: str) -> str:
-    """Creates an access token."""
-    return _token_encode(subject, _JWT_ACCESS_TOKEN_EXPIRY_MINS, _settings.JWT_ACCESS_TOKEN_KEY)
-
-
-def refresh_token_encode(subject: str) -> str:
-    """Creates a refresh token."""
-    return _token_encode(subject, _JWT_REFRESH_TOKEN_EXPIRY_MINS, _settings.JWT_REFRESH_TOKEN_KEY)
-
-
-def access_token_decode(token: str) -> Token:
-    """Decodes an access token."""
-    return _token_decode(token, _settings.JWT_ACCESS_TOKEN_KEY)
-
-
-def refresh_token_decode(token: str) -> Token:
-    """Decodes a refresh token."""
-    return _token_decode(token, _settings.JWT_REFRESH_TOKEN_KEY)
-
-
-async def dep_bearer_token(request: Request) -> Token | None:
+async def dep_bearer_token(request: Request) -> AccessToken:
     """A FastAPI dependency to extract & return the bearer authorization from
     a request"""
     authorization = request.headers.get("Authorization")
@@ -139,7 +136,8 @@ def get_google_user(auth: GoogleApiAuthCode) -> UserWithGoogleCreds:
     )
 
 
-def generate_token_pair(sub: str) -> tuple[str, str]:
+def generate_token_pair(subject: str, timezone: str) -> tuple[str, str]:
+    """Returns an access token and a refresh token"""
     return _token_encode(
-        sub, _JWT_ACCESS_TOKEN_EXPIRY_MINS, _settings.JWT_ACCESS_TOKEN_KEY
-    ), _token_encode(sub, _JWT_REFRESH_TOKEN_EXPIRY_MINS, _settings.JWT_REFRESH_TOKEN_KEY)
+        subject, _JWT_ACCESS_TOKEN_EXPIRY_MINS, timezone, _settings.JWT_ACCESS_TOKEN_KEY
+    ), _token_encode(subject, _JWT_REFRESH_TOKEN_EXPIRY_MINS, "", _settings.JWT_REFRESH_TOKEN_KEY)

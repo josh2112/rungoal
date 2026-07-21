@@ -20,9 +20,9 @@ export interface Settings {
 }
 
 export interface SyncParams {
-    from: string;
-    to: string;
-    runtracker_timezone?: string;
+    from?: string;
+    to?: string;
+    include_runtracker: boolean;
 }
 
 interface SyncStateDTO {

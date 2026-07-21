@@ -1,5 +1,6 @@
 from datetime import UTC, date, datetime
 from enum import StrEnum
+from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa
 from pydantic import BaseModel, ConfigDict, EmailStr, model_validator
@@ -62,6 +63,11 @@ class User(UserWithGoogleCreds, table=True):
     id: int | None = Field(default=None, primary_key=True)
     runs: list["Run"] = Relationship(back_populates="user", cascade_delete=True)
     goals: list["Goal"] = Relationship(back_populates="user", cascade_delete=True)
+
+
+class RequestUser(UserResponse):
+    id: int
+    timezone: str
 
 
 class WeatherBase(SQLModel):
@@ -198,3 +204,14 @@ class Error(BaseModel):
     title: str
     detail: str | None = None
     source: str | None = None
+
+
+class SyncRequest(BaseModel):
+    from_: datetime | None = Field(alias="from", default=None)
+    to: datetime | None = None
+    include_runtracker: bool
+
+
+class SyncParams(SyncRequest):
+    user_id: int
+    timezone: ZoneInfo

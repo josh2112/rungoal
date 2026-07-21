@@ -3,6 +3,7 @@ from collections.abc import AsyncIterable
 from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
+from typing import cast
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
@@ -11,7 +12,7 @@ from pydantic import BaseModel, Field
 from rungoal.crud import get_user
 from rungoal.database import get_db
 from rungoal.google import GoogleHealthClient
-from rungoal.models import Error
+from rungoal.models import Error, SyncParams, SyncRequest
 from rungoal.settings import settings
 from rungoal.sync import sync_runs
 from rungoal.utils import ProgressProtocol, TimeRange
@@ -95,13 +96,6 @@ class WebProgress(ProgressProtocol):
 _syncs_in_progress: dict[int, "SyncOperation"] = {}
 
 
-class SyncParams(BaseModel):
-    user_id: int
-    from_: datetime | None
-    to: datetime | None
-    runtracker_timezone: ZoneInfo | None
-
-
 class SyncOperation:
     def __init__(self, params: SyncParams):
         self.progress = WebProgress()
@@ -109,16 +103,16 @@ class SyncOperation:
 
     def _run_sync_thread(self, params: SyncParams):
         with get_db() as db:
-            user = get_user(db, params.user_id)
+            user = get_user(db, cast(int, params.user_id))
             with GoogleHealthClient(user, db) as client:
-                rt_db = Path(settings.RUNTRACKER_DB) if params.runtracker_timezone else None
+                rt_db = Path(settings.RUNTRACKER_DB) if params.include_runtracker else None
                 span = sync_runs(
                     client,
                     self.progress,
                     from_=params.from_,
                     to=params.to,
                     runtracker_db_path=rt_db,
-                    runtracker_tz=params.runtracker_timezone,
+                    runtracker_tz=params.timezone,
                 )
                 # The first sync means onboarding is completed
                 if not user.is_onboarded:
@@ -146,15 +140,16 @@ def sync_status(user_id: int) -> SyncState:
 
 
 # Starts a sync, if one is not already in progress.
-async def sync_start(
-    user_id: int,
-    from_: datetime | None,
-    to: datetime | None,
-    runtracker_timezone: ZoneInfo | None,
-):
+async def sync_start(user_id: int, params: SyncRequest, timezone: ZoneInfo):
     if user_id not in _syncs_in_progress:
         _syncs_in_progress[user_id] = SyncOperation(
-            SyncParams(user_id=user_id, from_=from_, to=to, runtracker_timezone=runtracker_timezone)
+            SyncParams(
+                user_id=user_id,
+                from_=params.from_,
+                to=params.to,
+                include_runtracker=params.include_runtracker,
+                timezone=timezone,
+            )
         )
 
 

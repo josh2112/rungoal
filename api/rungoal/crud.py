@@ -1,6 +1,7 @@
 from collections.abc import Sequence
 from datetime import datetime
 from typing import Any, cast
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, text
 from sqlmodel import Session, col, select
@@ -67,14 +68,14 @@ def delete_goal(db: Session, user_id: int, goal_id: int):
     db.commit()
 
 
-def get_goals(db: Session, user_id: int) -> list[GoalResponse]:
+def get_goals(db: Session, user_id: int, timezone: ZoneInfo) -> list[GoalResponse]:
     # SQLite3's date fuctions take an offset as "+/- X.Y hours"
-    assert (tz_offset := datetime.now().astimezone().utcoffset())
-    tz_offset = f"{tz_offset.total_seconds() / 3600} hours"
+    assert (utc_offset := timezone.utcoffset(datetime.now()))
+    utc_offset = f"{utc_offset.total_seconds() / 3600} hours"
 
     # Offset each run's start_time (stored in UTC) by the time zone offset (which may
     # wrap the date), then we can get away with just comparing dates.
-    expr_run_date = func.date(Run.start_time, tz_offset)
+    expr_run_date = func.date(Run.start_time, utc_offset)
 
     # Sum millimeters (returning 0 if no matching rows) then convert to meters.
     expr_total_distance = (func.coalesce(func.sum(Run.distance_millimeters), 0) / 1000.0).label(
