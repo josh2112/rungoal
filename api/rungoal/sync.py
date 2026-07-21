@@ -1,3 +1,4 @@
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
@@ -30,6 +31,8 @@ from rungoal.utils import ProgressProtocol, TimeRange
 # If a run is too far down in the list of returned results, it may have run-specific data stripped
 # off and report as a regular exercise.
 _RUN_FETCH_DAYS = timedelta(days=10)
+
+logger = logging.getLogger(__name__)
 
 
 # Syncs runs from Google Health to the database for the given time range. Existing runs will only
@@ -115,6 +118,7 @@ def sync_runs(
         try:
             sync_runtracker(client, progress, runtracker_db_path, runtracker_tz)
         except SQLAlchemyError as e:
+            logger.exception("Unable to open Runtracker database")
             raise Exception("Unable to open Runtracker database") from e
 
     return span
@@ -275,6 +279,7 @@ def sync_runtracker(
                         start_date=rt_goal.start_date,
                         end_date=rt_goal.end_date,
                         distance_meters=rt_goal.distance_meters,
+                        name=f"Runtracker Goal {rt_goal.id}",
                     )
                 )
             progress.advance(task2)

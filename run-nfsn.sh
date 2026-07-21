@@ -10,4 +10,6 @@ exec .venv/bin/uvicorn \
 	--host 127.0.0.1 \
 	--port 8400 \
 	--proxy-headers \
-	--forwarded-allow-ips='*'
+	--no-access-log \
+	--forwarded-allow-ips='*' \
+	--root-path='/rungoal'
