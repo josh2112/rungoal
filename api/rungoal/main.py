@@ -12,7 +12,7 @@ from rungoal.settings import settings
 # ================ Init ================
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.WARNING,
     format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
 )
 

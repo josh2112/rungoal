@@ -52,7 +52,6 @@ jobs:
                   --exclude-from='.rsyncignore' \
                   ui/dist/ \
                   api/ \
-                  run-nfsn.sh \
                   ${{ vars.HOST }}:$DEST_PATH
 
             - name: Refresh Python venv

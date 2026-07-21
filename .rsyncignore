@@ -1,13 +1,14 @@
-.env
-client_secrets.json
+/.env
+/client_secrets.json
 /data
 
 /api/.venv
-/*.sh
+/run-nfsn.sh
+/.rsyncignore
 
 .git/
 .github/
 .gitignore
-.rsyncignore
 
+.vscode
 *.code-workspace
