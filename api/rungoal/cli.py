@@ -150,12 +150,78 @@ def cmd_del_recent_runs(user_id: int, count: int = 1):
         db.commit()
 
 
+@app.command("stats", help="Calculates stats for the last run")
+def cmd_calc_stats(run_ids: int, time_division_secs: int):
+    with get_db() as db:
+        for run_id in (run_ids,):
+            trackpoints = db.exec(
+                select(TrackPoint)
+                .where(TrackPoint.run_id == run_id)
+                .order_by(col(TrackPoint.elapsed_secs))
+            ).all()
+            if not trackpoints:
+                continue
+
+            # Divide the trackpoints into X-second-long chunks
+            markers, end_time = [], time_division_secs
+            for i, tp in enumerate(trackpoints):
+                if tp.elapsed_secs > end_time:
+                    markers.append(i)
+                    end_time += time_division_secs
+
+            start = 0
+            gad_total, dist_total = 0, 0
+            for end in markers:
+                gad_chunk, dist_chunk = 0, 0
+                hr_chunk = 0
+                for i in range(start + 1, end + 1):
+                    # Distance
+                    d = trackpoints[i].distance_meters - trackpoints[i - 1].distance_meters
+                    # Grade (change in alt / change in distance)
+                    g = (
+                        0
+                        if not d
+                        else (trackpoints[i].alt_meters - trackpoints[i - 1].alt_meters) / d
+                    )
+                    g = min(0.5, max(-0.5, g))
+                    # GAP Factor (using Minetti polynomial)
+                    gf = (
+                        (((43.166667 * g - 8.444444) * g - 12.027778) * g + 12.861111) * g
+                        + 5.416667
+                    ) * g + 1.0
+                    # Grade-adjusted distance
+                    gad = d * gf
+                    dist_chunk += d
+                    gad_chunk += gad
+                    hr_chunk += trackpoints[i].heart_rate_bpm or 0
+
+                gad_total += gad_chunk
+                dist_total += dist_chunk
+
+                time_chunk = trackpoints[end].elapsed_secs - trackpoints[start + 1].elapsed_secs
+                ngs_chunk = gad_chunk / time_chunk
+
+                hr_chunk /= end - start + 1
+                eff_chunk = ngs_chunk / hr_chunk if hr_chunk else 0
+
+                print(
+                    f"  distance={dist_chunk}, GAD={gad_chunk}, delta={round((gad_chunk / dist_chunk - 1) * 100, 2)}%, "
+                )
+
+                start = end
+
+            print(
+                f"distance={dist_total}, GAD={gad_total}, delta={round((gad_total / dist_total - 1) * 100, 2)}%, "
+            )
+
+
 @app.command(
     "init-db", help="Deletes and recreates the database, optionally recreating revision data."
 )
 def cmd_init_db(regen: bool = False):
-    from alembic import command
     from alembic.config import Config
+
+    from alembic import command
 
     alembic_config = Config("alembic.ini")
 
