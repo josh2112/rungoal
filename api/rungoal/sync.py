@@ -19,11 +19,13 @@ from rungoal.models import (
     Run,
     RunDataSource,
     RunFetchContext,
+    RunSplitStats,
     TrackPoint,
     Weather,
     run_unique_constriant_columns,
 )
 from rungoal.open_meteo import OpenMeteoClient
+from rungoal.stats import calc_split_stats
 from rungoal.utils import ProgressProtocol, TimeRange
 
 # Only grab at most _RUN_FETCH_DAYS days of data at a time to avoid this Google Health API v4 bug:
@@ -114,6 +116,7 @@ def sync_runs(
         sync_tcx(client, progress, updated_runs)
     if wx:
         sync_wx(client.db, progress, updated_runs)
+    sync_split_stats(client.db, progress, updated_runs)
     if runtracker_db_path:
         try:
             sync_runtracker(client, progress, runtracker_db_path, runtracker_tz)
@@ -313,7 +316,11 @@ def sync_tcx(client: GoogleHealthClient, progress: ProgressProtocol, runs: list[
 
 def sync_wx(db: Session, progress: ProgressProtocol, runs: list[RunFetchContext]):
     task = "Downloading weather..."
-    progress.start_task(task, total=len(runs) + 1)
+    progress.start_task(task, total=len(runs))
+
+    # Remove any weather associated with these runs
+    db.exec(delete(Weather).where(col(Weather.run_id).in_([r.id for r in runs])))
+    db.commit()
 
     with OpenMeteoClient() as client:
         for run in runs:
@@ -338,4 +345,16 @@ def sync_wx(db: Session, progress: ProgressProtocol, runs: list[RunFetchContext]
 
         db.commit()
 
-    progress.advance(task)
+
+def sync_split_stats(db: Session, progress: ProgressProtocol, runs: list[RunFetchContext]):
+    task = "Calculating split stats..."
+    progress.start_task(task, total=len(runs))
+
+    # Remove any split stats associated with these runs
+    db.exec(delete(RunSplitStats).where(col(RunSplitStats.run_id).in_([r.id for r in runs])))
+    db.commit()
+
+    for run in runs:
+        db.add_all(calc_split_stats(db, run.id, 300))
+        progress.advance(task)
+    db.commit()

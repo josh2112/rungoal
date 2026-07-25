@@ -1,4 +1,4 @@
--- database: rungoal.db
+-- database: ..\data\rungoal.db
 select
     goal.start_date,
     goal.end_date,
@@ -27,3 +27,10 @@ order by
 
 select
     datetime('now', '18000 seconds');
+
+
+select min(alt_meters), max(alt_meters) from trackpoint where run_id = 382;
+
+select * from trackpoint where trackpoint.run_id = 386 and trackpoint.elapsed_secs >= 1666 and trackpoint.elapsed_secs <= 1900;
+
+select * from runsplitstats where runsplitstats.run_id = 386

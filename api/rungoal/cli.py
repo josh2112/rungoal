@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
@@ -13,10 +14,11 @@ from rungoal.google import GoogleHealthClient
 from rungoal.models import (
     Run,
     RunFetchContext,
+    RunSplitStats,
     TrackPoint,
     Weather,
 )
-from rungoal.sync import sync_runs, sync_runtracker, sync_tcx, sync_wx
+from rungoal.sync import sync_runs, sync_runtracker, sync_split_stats, sync_tcx, sync_wx
 from rungoal.utils import ProgressProtocol
 
 app = typer.Typer()
@@ -100,7 +102,7 @@ def cmd_sync_runtracker(
 
 
 @app.command("sync-tcx", help="Syncs TCX track data for runs in the given timespan.")
-def cmd_sync_tcx(user_id: int, from_: datetime, to: datetime | None = None):
+def cmd_sync_tcx(user_id: int, from_: datetime, to: datetime | None = None, replace: bool = False):
     with get_db() as db, CliProgress() as progress:
         user = get_user(db, user_id)
         # Select runs for this user and timespan for which we don't already have trackpoints
@@ -111,13 +113,17 @@ def cmd_sync_tcx(user_id: int, from_: datetime, to: datetime | None = None):
         )
         if to:
             sql = sql.where(Run.end_time <= to.replace(tzinfo=UTC))
-        runs = db.exec(sql.where(col(Run.id).notin_(select(TrackPoint.run_id)))).all()
+        if not replace:
+            sql = sql.where(col(Run.id).notin_(select(TrackPoint.run_id)))
+        runs = db.exec(sql).all()
         with GoogleHealthClient(user, db) as client:
             sync_tcx(client, progress, list(RunFetchContext.model_validate(r) for r in runs))
 
 
 @app.command("sync-weather", help="Syncs weather data for runs in the given timespan.")
-def cmd_sync_weather(user_id: int, from_: datetime, to: datetime | None = None):
+def cmd_sync_weather(
+    user_id: int, from_: datetime, to: datetime | None = None, replace: bool = False
+):
     with get_db() as db, CliProgress() as progress:
         user = get_user(db, user_id)
         # Select runs for this user and timespan for which we don't already have weather
@@ -128,8 +134,30 @@ def cmd_sync_weather(user_id: int, from_: datetime, to: datetime | None = None):
         )
         if to:
             sql = sql.where(Run.end_time <= to.replace(tzinfo=UTC))
-        runs = db.exec(sql.where(col(Run.id).notin_(select(Weather.run_id)))).all()
+        if not replace:
+            sql = sql.where(col(Run.id).notin_(select(Weather.run_id)))
+        runs = db.exec(sql).all()
         sync_wx(db, progress, list(RunFetchContext.model_validate(r) for r in runs))
+
+
+@app.command("sync-split-stats", help="Syncs split stats for runs in the given timespan.")
+def cmd_sync_split_stats(
+    user_id: int, from_: datetime, to: datetime | None = None, replace: bool = False
+):
+    with get_db() as db, CliProgress() as progress:
+        user = get_user(db, user_id)
+        # Select runs for this user and timespan for which we don't already have split stats
+        sql = (
+            select(Run)
+            .where(Run.user_id == user.id)
+            .where(Run.start_time >= from_.replace(tzinfo=UTC))
+        )
+        if to:
+            sql = sql.where(Run.end_time <= to.replace(tzinfo=UTC))
+        if not replace:
+            sql = sql.where(col(Run.id).notin_(select(RunSplitStats.run_id)))
+        runs = db.exec(sql).all()
+        sync_split_stats(db, progress, list(RunFetchContext.model_validate(r) for r in runs))
 
 
 @app.command(
@@ -150,78 +178,46 @@ def cmd_del_recent_runs(user_id: int, count: int = 1):
         db.commit()
 
 
-@app.command("stats", help="Calculates stats for the last run")
-def cmd_calc_stats(run_ids: int, time_division_secs: int):
+@dataclass
+class IntRangeArgument:
+    values: list[int]
+
+
+def parse_int_range(value: str):
+    return IntRangeArgument(
+        [
+            i
+            for p in value.split(",")
+            for a, _, b in [p.partition("-")]
+            for i in range(int(a), int(b or a) + 1)
+        ]
+    )
+
+
+""" import matplotlib.pyplot as plot
+
+
+@app.command("plot-alt")
+def cmd_plot_alt(run_ids: Annotated[IntRangeArgument, typer.Argument(parser=parse_int_range)]):
     with get_db() as db:
-        for run_id in (run_ids,):
+        for run_id in run_ids.values:
             trackpoints = db.exec(
                 select(TrackPoint)
                 .where(TrackPoint.run_id == run_id)
                 .order_by(col(TrackPoint.elapsed_secs))
             ).all()
-            if not trackpoints:
-                continue
-
-            # Divide the trackpoints into X-second-long chunks
-            markers, end_time = [], time_division_secs
-            for i, tp in enumerate(trackpoints):
-                if tp.elapsed_secs > end_time:
-                    markers.append(i)
-                    end_time += time_division_secs
-
-            start = 0
-            gad_total, dist_total = 0, 0
-            for end in markers:
-                gad_chunk, dist_chunk = 0, 0
-                hr_chunk = 0
-                for i in range(start + 1, end + 1):
-                    # Distance
-                    d = trackpoints[i].distance_meters - trackpoints[i - 1].distance_meters
-                    # Grade (change in alt / change in distance)
-                    g = (
-                        0
-                        if not d
-                        else (trackpoints[i].alt_meters - trackpoints[i - 1].alt_meters) / d
-                    )
-                    g = min(0.5, max(-0.5, g))
-                    # GAP Factor (using Minetti polynomial)
-                    gf = (
-                        (((43.166667 * g - 8.444444) * g - 12.027778) * g + 12.861111) * g
-                        + 5.416667
-                    ) * g + 1.0
-                    # Grade-adjusted distance
-                    gad = d * gf
-                    dist_chunk += d
-                    gad_chunk += gad
-                    hr_chunk += trackpoints[i].heart_rate_bpm or 0
-
-                gad_total += gad_chunk
-                dist_total += dist_chunk
-
-                time_chunk = trackpoints[end].elapsed_secs - trackpoints[start + 1].elapsed_secs
-                ngs_chunk = gad_chunk / time_chunk
-
-                hr_chunk /= end - start + 1
-                eff_chunk = ngs_chunk / hr_chunk if hr_chunk else 0
-
-                print(
-                    f"  distance={dist_chunk}, GAD={gad_chunk}, delta={round((gad_chunk / dist_chunk - 1) * 100, 2)}%, "
-                )
-
-                start = end
-
-            print(
-                f"distance={dist_total}, GAD={gad_total}, delta={round((gad_total / dist_total - 1) * 100, 2)}%, "
-            )
+            x = [t.elapsed_secs for t in trackpoints]
+            y = [t.alt_meters for t in trackpoints]
+            plot.plot(x, y, label=str(run_id))
+    plot.show() """
 
 
 @app.command(
     "init-db", help="Deletes and recreates the database, optionally recreating revision data."
 )
 def cmd_init_db(regen: bool = False):
-    from alembic.config import Config
-
     from alembic import command
+    from alembic.config import Config
 
     alembic_config = Config("alembic.ini")
 

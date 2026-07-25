@@ -42,6 +42,7 @@ select = ["ALL"]
 [dependency-groups]
 dev = [
     "fastapi-cli>=0.0.32",
+    "matplotlib>=3.11.1",
 ]
 
 [tool.ruff]

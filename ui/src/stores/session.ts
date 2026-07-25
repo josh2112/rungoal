@@ -33,11 +33,9 @@ export const useSession = defineStore("session", () => {
     });
 
     async function logIn(google_access_code?: string) {
-        await api.post(
-            "/auth/google",
-            google_access_code ? { google_access_code } : undefined,
-            { headers: { 'X-Timezone': Intl.DateTimeFormat().resolvedOptions().timeZone } }
-        );
+        await api.post("/auth/google", google_access_code ? { google_access_code } : undefined, {
+            headers: { "X-Timezone": Intl.DateTimeFormat().resolvedOptions().timeZone },
+        });
 
         getMe();
     }
@@ -75,7 +73,7 @@ export const useSession = defineStore("session", () => {
         await api.post("/sync", {
             from: from?.toISOString(),
             to: to?.toISOString(),
-            include_runtracker: include_runtracker
+            include_runtracker: include_runtracker,
         } as SyncParams);
 
         streamSyncEvents();
@@ -174,6 +172,10 @@ export const useSession = defineStore("session", () => {
             ).data as []
         ).map((r) => toRun(r));
 
+        for (let n of newRuns) {
+            console.log(n.split_stats);
+        }
+
         const gotRuns = newRuns.length > 0;
 
         // Lump all runs rogether and remove dupes
@@ -198,8 +200,8 @@ export const useSession = defineStore("session", () => {
         const toTimestamp =
             runs.value.length > 0
                 ? runs.value.reduce((min, cur) =>
-                    Temporal.ZonedDateTime.compare(cur.start_time, min.start_time) < 0 ? cur : min,
-                ).start_time
+                      Temporal.ZonedDateTime.compare(cur.start_time, min.start_time) < 0 ? cur : min,
+                  ).start_time
                 : Temporal.Now.zonedDateTimeISO("UTC");
         return await getRuns(toTimestamp.subtract({ days: syncSizeInDays }), toTimestamp);
     }

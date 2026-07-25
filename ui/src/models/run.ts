@@ -16,6 +16,14 @@ export interface Weather {
     cloud_cover_pct: number | null;
 }
 
+export interface RunSplitStats {
+    split_secs: number;
+    dist_meters: number;
+    gad_meters: number;
+    hr_avg?: number;
+    efficiency?: number;
+}
+
 interface RunDTO {
     id: number;
     start_time: string;
@@ -24,6 +32,7 @@ interface RunDTO {
     distance_millimeters: number;
     average_pace_seconds_per_meter: number;
     weather: Weather;
+    split_stats: RunSplitStats;
 }
 
 export interface Run extends Omit<RunDTO, "start_time" | "active_duration"> {
@@ -62,7 +71,7 @@ export function toRunStats(run: Run, distUnit: DistanceUnit): RunStats {
         date_str: run.start_time.toLocaleString(currentLocale, { dateStyle: "full" }),
         dist_abbr: distanceAbbr(distUnit),
         distance: distanceConvert(run.distance_millimeters, "millimeters", distUnit),
-        duration_str: durationFormatter.format(run.active_duration.round({ smallestUnit: 'second' })),
+        duration_str: durationFormatter.format(run.active_duration.round({ smallestUnit: "second" })),
         pace_str: durationFormatter.format(pace),
     };
 }

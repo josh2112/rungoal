@@ -1,4 +1,8 @@
 ## TODO
+
+- Show weather and efficiency on RunCard
+- Can we get recording device (watch/phone/manual) from .tcx?
+
 Features:
 
 - Figure out likely running location (Sherman Branch, Veteran's Park, etc.) computed from GPS track

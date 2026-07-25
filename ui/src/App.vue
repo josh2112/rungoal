@@ -10,13 +10,14 @@ const session = useSession();
 const onboardingGoalDialogRef = ref<InstanceType<typeof OnboardingDialog> | null>(null);
 
 // If user is not onboarded yet and the onboarding process has not been started, do it now
-watch(() => [session.user, session.syncState], (_1, _2) => {
-    if (!session.user!.is_onboarded) {
-        if (!session.syncState?.is_syncing) {
+watch(
+    () => session.syncState,
+    (_) => {
+        if (!session.user!.is_onboarded && !session.syncState?.is_syncing) {
             onboardingGoalDialogRef.value!.open();
         }
-    }
-});
+    },
+);
 </script>
 
 <template>

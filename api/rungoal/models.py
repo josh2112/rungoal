@@ -110,6 +110,7 @@ class RunBase(SQLModel):
 class RunResponse(RunBase):
     id: int
     weather: WeatherResponse | None = None
+    split_stats: list["RunSplitStatsResponse"]
 
 
 class Run(RunBase, table=True):
@@ -137,6 +138,7 @@ class Run(RunBase, table=True):
     avg_ground_contact_time_duration: float | None
 
     track_points: list["TrackPoint"] = Relationship(back_populates="run", cascade_delete=True)
+    split_stats: list["RunSplitStats"] = Relationship(back_populates="run", cascade_delete=True)
     weather: Weather | None = Relationship(back_populates="run", cascade_delete=True)
 
     __table_args__ = (sa.UniqueConstraint(*run_unique_constriant_columns, name="run_unique"),)
@@ -163,6 +165,21 @@ class TrackPoint(SQLModel, table=True):
     alt_meters: float
     distance_meters: float
     heart_rate_bpm: int | None
+
+
+class RunSplitStatsResponse(SQLModel):
+    split_secs: int
+    dist_meters: float
+    gad_meters: float
+    hr_avg: float | None
+    efficiency: float | None
+
+
+class RunSplitStats(RunSplitStatsResponse, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+
+    run_id: int | None = Field(default=None, foreign_key="run.id", ondelete="CASCADE")
+    run: Run | None = Relationship(back_populates="split_stats")
 
 
 class GoalCreate(SQLModel):

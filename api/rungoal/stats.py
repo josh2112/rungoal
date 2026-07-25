@@ -1,0 +1,64 @@
+from sqlmodel import Session, col, select
+
+from rungoal.models import RunSplitStats, TrackPoint
+
+
+def calc_split_stats(db: Session, run_id: int, split_secs: int) -> list[RunSplitStats]:
+    trackpoints = db.exec(
+        select(TrackPoint).where(TrackPoint.run_id == run_id).order_by(col(TrackPoint.elapsed_secs))
+    ).all()
+
+    # Divide the trackpoints into X-second-long splits
+    markers, end_time = [], split_secs
+    for i, tp in enumerate(trackpoints):
+        if tp.elapsed_secs > end_time:
+            markers.append(i)
+            end_time += split_secs
+
+    split_stats: list[RunSplitStats] = []
+
+    start = 0
+    for end in markers:
+        # If we don't have enough trackpoints for this split (maybe a long pause?)
+        # just combine it with the next
+        if end - start < 30:
+            continue
+
+        gad_split, dist_split = 0, 0
+        hr_split = 0
+        for i in range(start + 1, end + 1):
+            # Distance
+            d = trackpoints[i].distance_meters - trackpoints[i - 1].distance_meters
+            # Grade (change in alt / change in distance)
+            g = 0 if not d else (trackpoints[i].alt_meters - trackpoints[i - 1].alt_meters) / d
+            # Discard super-steep outlier grades
+            g = min(0.5, max(-0.5, g))
+            # GAP Factor (using Minetti polynomial)
+            gf = (((((155.4 * g - 30.4) * g - 43.3) * g + 46.3) * g + 19.5) * g + 3.6) / 3.6
+            # Grade-adjusted distance
+            gad = d * gf
+            dist_split += d
+            gad_split += gad
+            hr_split += trackpoints[i].heart_rate_bpm or 0
+
+        time_split = trackpoints[end].elapsed_secs - trackpoints[start + 1].elapsed_secs
+
+        ngs_split = gad_split / time_split
+
+        hr_split /= end - start + 1
+        eff_split = 100 * ngs_split / hr_split if hr_split else 0
+
+        split_stats.append(
+            RunSplitStats(
+                run_id=run_id,
+                split_secs=round(trackpoints[end].elapsed_secs),
+                dist_meters=dist_split,
+                gad_meters=gad_split,
+                hr_avg=hr_split if hr_split else None,
+                efficiency=eff_split if eff_split else None,
+            )
+        )
+
+        start = end
+
+    return split_stats
