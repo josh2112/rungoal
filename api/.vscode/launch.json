@@ -7,6 +7,13 @@
             "request": "launch",
             "module": "fastapi",
             "args": ["dev"]
+        },
+        {
+            "name": "rungoal.cli example",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "rungoal.cli",
+            "args": ["sync-runs", "1", "--from", "2026-07-19", "--no-tcx", "--no-wx"]
         }
     ]
 }

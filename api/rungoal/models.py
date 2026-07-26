@@ -94,6 +94,22 @@ class RunDataSource(StrEnum):
     RUNTRACKER = "runTracker"
 
 
+class RecordingPlatform(StrEnum):
+    FITBIT = "FITBIT"
+    HEALTH_CONNECT = "HEALTH_CONNECT"
+    RUNTRACKER = "RUNTRACKER"
+
+
+class RecordingMethod(StrEnum):
+    MANUAL = "MANUAL"
+    ACTIVELY_MEASURED = "ACTIVELY_MEASURED"
+
+
+class DeviceType(StrEnum):
+    PHONE = "PHONE"
+    WATCH = "WATCH"
+
+
 # This unique constraint will help us match incoming duplicate (maybe updated) runs without ID.
 run_unique_constriant_columns = ("user_id", "data_source", "data_source_id")
 
@@ -136,6 +152,11 @@ class Run(RunBase, table=True):
     avg_vertical_oscillation_millimeters: int | None
     avg_vertical_ratio: float | None
     avg_ground_contact_time_duration: float | None
+
+    platform: RecordingPlatform | None = Field(sa_column=sa.Column(SQLEnum(RecordingPlatform)))
+    recording_method: RecordingMethod | None = Field(sa_column=sa.Column(SQLEnum(RecordingMethod)))
+    device_type: DeviceType | None = Field(sa_column=sa.Column(SQLEnum(DeviceType)))
+    device_name: str | None
 
     track_points: list["TrackPoint"] = Relationship(back_populates="run", cascade_delete=True)
     split_stats: list["RunSplitStats"] = Relationship(back_populates="run", cascade_delete=True)

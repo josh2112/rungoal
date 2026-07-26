@@ -9,7 +9,7 @@ from starlette.exceptions import HTTPException
 
 from rungoal.cors import allowed_origins
 from rungoal.models import Error
-import traceback
+
 
 class RecordNotFoundError(LookupError):
     """Represents a failure to find a database record"""
@@ -76,7 +76,6 @@ def init_exception_handlers(app: FastAPI):
 
     @app.exception_handler(Exception)
     def on_exception(request: Request, exc: Exception):
-        traceback.print_exception(exc)
         return wrap_error_response(
             request,
             status.HTTP_500_INTERNAL_SERVER_ERROR,

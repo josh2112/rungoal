@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 
 import typer
 from rich.progress import Progress as RichProgress
+from sqlalchemy import delete
 from sqlmodel import col, select
 
 from rungoal.crud import get_user
@@ -183,6 +184,7 @@ class IntRangeArgument:
     values: list[int]
 
 
+""" 
 def parse_int_range(value: str):
     return IntRangeArgument(
         [
@@ -194,7 +196,7 @@ def parse_int_range(value: str):
     )
 
 
-""" import matplotlib.pyplot as plot
+import matplotlib.pyplot as plot
 
 
 @app.command("plot-alt")
@@ -234,6 +236,13 @@ def cmd_init_db(regen: bool = False):
 
     # Create & upgrade the databse
     command.upgrade(alembic_config, "head")
+
+
+@app.command("clear-runs")
+def cmd_clear_runs():
+    with get_db() as db:
+        db.exec(delete(Run))
+        db.commit()
 
 
 if __name__ == "__main__":

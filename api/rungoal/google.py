@@ -10,7 +10,16 @@ import httpx
 from google.oauth2.credentials import Credentials
 from sqlmodel import Session
 
-from rungoal.models import Run, RunDataSource, RunFetchContext, TrackPoint, User
+from rungoal.models import (
+    DeviceType,
+    RecordingMethod,
+    RecordingPlatform,
+    Run,
+    RunDataSource,
+    RunFetchContext,
+    TrackPoint,
+    User,
+)
 from rungoal.utils import TimeRange
 
 
@@ -133,7 +142,8 @@ class GoogleHealthClient(httpx.Client):
     def _run_from_data_point(self, dp: dict) -> Run:
         ex = dp["exercise"]
         metrics = ex["metricsSummary"]
-        mobMet = metrics.get("mobilityMetrics") or {}
+        mobMet = metrics.get("mobilityMetrics", {})
+        ds = dp["dataSource"]
 
         return Run(
             user_id=self.user.id,
@@ -153,6 +163,14 @@ class GoogleHealthClient(httpx.Client):
             avg_stride_length_millimeters=mobMet.get("avgStrideLengthMillimeters"),
             avg_vertical_oscillation_millimeters=mobMet.get("avgVerticalOscillationMillimeters"),
             avg_vertical_ratio=mobMet.get("avgVerticalRatio"),
+            platform=next((rp for rp in RecordingPlatform if rp == ds["platform"]), None),
+            recording_method=next(
+                (rm for rm in RecordingMethod if rm == ds["recordingMethod"]), None
+            ),
+            device_type=next(
+                (dt for dt in DeviceType if dt == ds.get("device", {}).get("formFactor")), None
+            ),
+            device_name=ds.get("device", {}).get("displayName"),
             avg_ground_contact_time_duration=float(tmp[:-1])
             if (tmp := mobMet.get("avgGroundContactTimeDuration"))
             else None,

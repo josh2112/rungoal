@@ -1,7 +1,7 @@
 ## TODO
 
-- Show weather and efficiency on RunCard
-- Can we get recording device (watch/phone/manual) from .tcx?
+- BUG: When onboarding sync is finished, frontend immediately restarts onboarding. To debug, force onboaring sync to only past week
+- Show weather, efficiency and data source on RunCard
 
 Features:
 

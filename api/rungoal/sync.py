@@ -16,6 +16,8 @@ from rungoal.google import GoogleHealthClient
 from rungoal.import_runtracker import RuntrackerGoal
 from rungoal.models import (
     Goal,
+    RecordingMethod,
+    RecordingPlatform,
     Run,
     RunDataSource,
     RunFetchContext,
@@ -248,6 +250,10 @@ def sync_runtracker(
                         avg_stride_length_millimeters=None,
                         avg_vertical_oscillation_millimeters=None,
                         avg_vertical_ratio=None,
+                        platform=RecordingPlatform.RUNTRACKER,
+                        recording_method=RecordingMethod.MANUAL,
+                        device_type=None,
+                        device_name=None,
                     )
 
                 except Exception as e:
