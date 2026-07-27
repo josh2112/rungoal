@@ -12,10 +12,10 @@ class TimeRange:
             self.end = start + duration
         elif end:
             if end < start:
-                raise Exception("End time must be after start time")
+                raise ValueError("End time must be after start time")
             self.end = end
         else:
-            raise Exception("Must include either [end] or [duration]")
+            raise ValueError("Must include either [end] or [duration]")
 
     def overlaps(self, other: "TimeRange") -> bool:
         return self.end > other.start if self.start < other.start else self.start < other.end

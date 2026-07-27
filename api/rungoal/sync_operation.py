@@ -127,7 +127,7 @@ class SyncOperation:
         try:
             await asyncio.to_thread(self._run_sync_thread, params)
         except Exception as e:
-            logging.exception(e)
+            logger.exception("Error while syncing")
             self.progress.set_error(e)
         finally:
             await asyncio.sleep(0.2)  # Give the sync-complete message a chance to be sent

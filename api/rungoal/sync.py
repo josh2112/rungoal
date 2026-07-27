@@ -62,9 +62,8 @@ def sync_runs(
     tcx: bool = True,
     wx: bool = True,
 ) -> TimeRange:
-    if runtracker_db_path:
-        if not runtracker_tz:
-            raise Exception("Please supply a time zone for Runtracker imports")
+    if runtracker_db_path and not runtracker_tz:
+        raise ValueError("Please supply a time zone for Runtracker imports")
 
     runtracker_tz = runtracker_tz or ZoneInfo("UTC")
 
@@ -122,9 +121,9 @@ def sync_runs(
     if runtracker_db_path:
         try:
             sync_runtracker(client, progress, runtracker_db_path, runtracker_tz)
-        except SQLAlchemyError as e:
+        except SQLAlchemyError:
             logger.exception("Unable to open Runtracker database")
-            raise Exception("Unable to open Runtracker database") from e
+            raise
 
     return span
 
@@ -174,7 +173,7 @@ def _update_runs(db: Session, runs: list[Run], timespan: TimeRange) -> list[RunF
     ).all()
     db.commit()
 
-    return list(RunFetchContext.model_validate(r) for r in updated_runs)
+    return [RunFetchContext.model_validate(r) for r in updated_runs]
 
 
 def sync_runtracker(
@@ -223,7 +222,8 @@ def sync_runtracker(
                 # in the local timezone
                 start_local = datetime.combine(rt_run.date, time(16, 0), timezone)
 
-                assert (utc_offset := start_local.utcoffset())
+                utc_offset = start_local.utcoffset()
+                assert utc_offset
                 utc_offset_secs = int(utc_offset.total_seconds())
 
                 start_utc = start_local.astimezone(UTC)

@@ -118,7 +118,7 @@ def get_google_user(auth: GoogleApiAuthCode) -> UserWithGoogleCreds:
     flow.fetch_token(code=auth.google_access_code)
 
     if type(flow.credentials.token) is not str or type(flow.credentials.refresh_token) is not str:
-        raise Exception("Google OAuth2 flow returned unexpected credentials")
+        raise TypeError("Google OAuth2 flow returned unexpected credentials")
 
     user_info = build("oauth2", "v2", credentials=flow.credentials).userinfo().get().execute()
 

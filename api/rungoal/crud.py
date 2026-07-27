@@ -70,7 +70,9 @@ def delete_goal(db: Session, user_id: int, goal_id: int):
 
 def get_goals(db: Session, user_id: int, timezone: ZoneInfo) -> list[GoalResponse]:
     # SQLite3's date fuctions take an offset as "+/- X.Y hours"
-    assert (utc_offset := timezone.utcoffset(datetime.now()))
+    utc_offset = datetime.now(timezone).utcoffset()
+    assert utc_offset
+
     utc_offset = f"{utc_offset.total_seconds() / 3600} hours"
 
     # Offset each run's start_time (stored in UTC) by the time zone offset (which may

@@ -79,7 +79,7 @@ def cmd_sync_runs(
     wx: Annotated[bool, typer.Option(help="Sync weather")] = True,
 ):
     if runtracker_db_path and not runtracker_tz:
-        raise Exception("Please supply a time zone for Runtracker imports")
+        raise ValueError("Please supply a time zone for Runtracker imports")
 
     with get_db() as db:
         user = get_user(db, user_id)
@@ -118,7 +118,7 @@ def cmd_sync_tcx(user_id: int, from_: datetime, to: datetime | None = None, repl
             sql = sql.where(col(Run.id).notin_(select(TrackPoint.run_id)))
         runs = db.exec(sql).all()
         with GoogleHealthClient(user, db) as client:
-            sync_tcx(client, progress, list(RunFetchContext.model_validate(r) for r in runs))
+            sync_tcx(client, progress, [RunFetchContext.model_validate(r) for r in runs])
 
 
 @app.command("sync-weather", help="Syncs weather data for runs in the given timespan.")
@@ -138,7 +138,7 @@ def cmd_sync_weather(
         if not replace:
             sql = sql.where(col(Run.id).notin_(select(Weather.run_id)))
         runs = db.exec(sql).all()
-        sync_wx(db, progress, list(RunFetchContext.model_validate(r) for r in runs))
+        sync_wx(db, progress, [RunFetchContext.model_validate(r) for r in runs])
 
 
 @app.command("sync-split-stats", help="Syncs split stats for runs in the given timespan.")
@@ -158,7 +158,7 @@ def cmd_sync_split_stats(
         if not replace:
             sql = sql.where(col(Run.id).notin_(select(RunSplitStats.run_id)))
         runs = db.exec(sql).all()
-        sync_split_stats(db, progress, list(RunFetchContext.model_validate(r) for r in runs))
+        sync_split_stats(db, progress, [RunFetchContext.model_validate(r) for r in runs])
 
 
 @app.command(
@@ -218,8 +218,9 @@ def cmd_plot_alt(run_ids: Annotated[IntRangeArgument, typer.Argument(parser=pars
     "init-db", help="Deletes and recreates the database, optionally recreating revision data."
 )
 def cmd_init_db(regen: bool = False):
-    from alembic import command
     from alembic.config import Config
+
+    from alembic import command
 
     alembic_config = Config("alembic.ini")
 
