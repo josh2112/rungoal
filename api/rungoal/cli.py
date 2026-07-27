@@ -239,9 +239,12 @@ def cmd_init_db(regen: bool = False):
 
 
 @app.command("clear-runs")
-def cmd_clear_runs():
+def cmd_clear_runs(user_id: int):
     with get_db() as db:
-        db.exec(delete(Run))
+        db.exec(delete(Run).where(col(Run.user_id) == user_id))
+        user = get_user(db, 1)
+        user.is_onboarded = False
+        db.add(user)
         db.commit()
 
 

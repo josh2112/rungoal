@@ -11,6 +11,12 @@ const props = defineProps<{
 const session = useSession();
 
 const stats = computed(() => toRunStats(props.run, session.settings!.distance_unit));
+
+/*const efficiencyToColor = (eff: number): number | undefined => {
+    if (session.efficiencyRange) {
+        const t = (eff - session.efficiencyRange.min) / (session.efficiencyRange.max / session.efficiencyRange.min);
+    }
+};*/
 </script>
 
 <template>
@@ -24,7 +30,11 @@ const stats = computed(() => toRunStats(props.run, session.settings!.distance_un
                 <div class="d-flex justify-content-between card-text">
                     <div>
                         <div v-if="stats.run.calories">{{ stats.run.calories }} cal</div>
-
+                        <div>
+                            <span v-for="split in stats.run.split_stats">
+                                {{ split.efficiency }}
+                            </span>
+                        </div>
                     </div>
                     <div class="text-end">
                         <div>{{ stats.duration_str }}</div>
@@ -35,3 +45,14 @@ const stats = computed(() => toRunStats(props.run, session.settings!.distance_un
         </div>
     </div>
 </template>
+
+<style scoped>
+/*
+--color-start: #ff4757; 
+  --color-end: #2ed573; 
+  --mix-val: v-bind(mixPercentage);
+
+  Interpolate using CSS color-mix() 
+  background-color: color-mix(in oklch, var(--color-start), var(--color-end) var(--mix-val));
+*/
+</style>

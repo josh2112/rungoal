@@ -249,6 +249,9 @@ class SyncRequest(BaseModel):
     to: datetime | None = None
     include_runtracker: bool
 
+    class Config:
+        populate_by_name = True
+
 
 class SyncParams(SyncRequest):
     user_id: int

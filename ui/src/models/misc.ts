@@ -55,5 +55,5 @@ interface NavbarAction {
 
 export const navbarState = reactive({
     title: "",
-    actions: [] as NavbarAction[]
+    actions: [] as NavbarAction[],
 });

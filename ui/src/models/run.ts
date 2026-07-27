@@ -32,7 +32,7 @@ interface RunDTO {
     distance_millimeters: number;
     average_pace_seconds_per_meter: number;
     weather: Weather;
-    split_stats: RunSplitStats;
+    split_stats: RunSplitStats[];
 }
 
 export interface Run extends Omit<RunDTO, "start_time" | "active_duration"> {

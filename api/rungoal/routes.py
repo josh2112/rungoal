@@ -106,6 +106,8 @@ async def get_sync_stream(user: DepUser) -> AsyncIterable[SyncState]:
 
 @api.post("/sync")
 async def start_sync(user: DepUser, params: SyncRequest):
+    params.from_ = datetime(2026, 7, 22)
+    params.include_runtracker = False
     await sync_start(
         cast(int, user.id),
         params,

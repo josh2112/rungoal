@@ -1,7 +1,7 @@
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import { defineStore } from "pinia";
 import { Temporal } from "temporal-polyfill";
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { syncSizeInDays } from "../consts";
 import { toGoal, type Goal, type GoalCreate, type GoalDTO, type GoalUpdate } from "../models/goal";
 import {
@@ -27,6 +27,27 @@ export const useSession = defineStore("session", () => {
 
     const goals = ref<Goal[]>([]);
     const runs = ref<Run[]>([]);
+
+    const efficiencyRange = computed(() => {
+        console.log("Recomputing efficiency range");
+        const result = runs.value.reduce(
+            (acc, run) => {
+                for (const stat of run.split_stats) {
+                    const val = stat.efficiency;
+
+                    // Filter out undefined, null, or NaN values
+                    if (val !== undefined && val !== null && !isNaN(val)) {
+                        if (val < acc.min) acc.min = val;
+                        if (val > acc.max) acc.max = val;
+                    }
+                }
+                return acc;
+            },
+            { min: Infinity, max: -Infinity },
+        );
+
+        return result.min === Infinity ? undefined : result;
+    });
 
     onMounted(async () => {
         await getMe();
@@ -90,6 +111,12 @@ export const useSession = defineStore("session", () => {
 
             async onmessage(msg) {
                 const state = toSyncState(JSON.parse(msg.data));
+
+                // If we just finished our onboaring sync, mark it so onboaring doesn't start again!
+                if (false === user.value?.is_onboarded && syncState.value?.is_syncing && false === state.is_syncing) {
+                    user.value.is_onboarded = true;
+                }
+
                 syncState.value = state;
 
                 if (!state.is_syncing) {
@@ -189,6 +216,7 @@ export const useSession = defineStore("session", () => {
         });
 
         newRuns.sort((a: Run, b: Run) => Temporal.Instant.compare(b.start_time, a.start_time));
+
         runs.value = newRuns;
 
         return gotRuns;
@@ -221,5 +249,6 @@ export const useSession = defineStore("session", () => {
         lastSynced,
         getRuns,
         getPreviousRuns,
+        efficiencyRange,
     };
 });

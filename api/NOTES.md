@@ -1,6 +1,5 @@
 ## TODO
 
-- BUG: When onboarding sync is finished, frontend immediately restarts onboarding. To debug, force onboaring sync to only past week
 - Show weather, efficiency and data source on RunCard
 
 Features:

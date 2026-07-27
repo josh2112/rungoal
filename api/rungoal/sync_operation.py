@@ -1,8 +1,8 @@
 import asyncio
+import logging
 from collections.abc import AsyncIterable
 from datetime import datetime
 from enum import StrEnum
-import logging
 from pathlib import Path
 from typing import cast
 from zoneinfo import ZoneInfo
@@ -19,6 +19,7 @@ from rungoal.sync import sync_runs
 from rungoal.utils import ProgressProtocol, TimeRange
 
 logger = logging.getLogger(__name__)
+
 
 class SyncTasks(StrEnum):
     find_start = "find_start"
@@ -126,7 +127,7 @@ class SyncOperation:
         try:
             await asyncio.to_thread(self._run_sync_thread, params)
         except Exception as e:
-            logging.exception( e )
+            logging.exception(e)
             self.progress.set_error(e)
         finally:
             await asyncio.sleep(0.2)  # Give the sync-complete message a chance to be sent
