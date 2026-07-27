@@ -78,7 +78,12 @@ export const useApi = defineStore("api", () => {
                     const refreshResponse = await axios.post(
                         `${api.defaults.baseURL}/auth/refresh`,
                         {},
-                        { withCredentials: true, headers: { 'X-Timezone': Intl.DateTimeFormat().resolvedOptions().timeZone } },
+                        {
+                            withCredentials: true,
+                            headers: {
+                                "X-Timezone": Intl.DateTimeFormat().resolvedOptions().timeZone,
+                            },
+                        },
                     );
 
                     console.log("Credentials obtained");

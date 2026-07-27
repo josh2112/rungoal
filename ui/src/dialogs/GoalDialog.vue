@@ -138,7 +138,7 @@ const onRadioChanged = () => {
                             <input type="number" class="form-control" id="distance" placeholder="_" min="1" max="10000"
                                 required v-model.number="distance" />
                             <label for="distance">Distance ({{ distanceAbbr(session.settings.distance_unit)
-                            }})</label>
+                                }})</label>
                             <span class="input-group-text">{{ formatDec(Math.max(0, distanceConvert(goal.distance_meters
                                 / durationDays, "meters",
                                 session.settings.distance_unit)), 2)

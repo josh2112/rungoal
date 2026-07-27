@@ -1,5 +1,5 @@
-import { Modal } from 'bootstrap';
-import { onMounted, onUnmounted, type Ref } from 'vue';
+import { Modal } from "bootstrap";
+import { onMounted, onUnmounted, type Ref } from "vue";
 
 export function useDialog(dialogRef: Ref<Element | undefined>) {
     let dialog: Modal | null = null;
@@ -7,9 +7,6 @@ export function useDialog(dialogRef: Ref<Element | undefined>) {
     onMounted(() => {
         if (dialogRef.value) {
             dialog = new Modal(dialogRef.value);
-        }
-        else {
-            console.log("shiat!")
         }
     });
 
@@ -20,6 +17,6 @@ export function useDialog(dialogRef: Ref<Element | undefined>) {
         close: () => {
             (document.activeElement as HTMLElement)?.blur();
             dialog?.hide();
-        }
+        },
     };
 }

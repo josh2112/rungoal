@@ -239,7 +239,7 @@ def sync_runtracker(
                         utc_offset_seconds=utc_offset_secs,
                         update_time=end_time,
                         calories=rt_run.calories,
-                        distance_millimeters=rt_run.distance_meters * 1000,
+                        distance_millimeters=round(rt_run.distance_meters * 1000),
                         average_pace_seconds_per_meter=rt_run.duration_secs
                         / rt_run.distance_meters,
                         active_duration=rt_run.duration_secs,

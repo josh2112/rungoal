@@ -1,7 +1,7 @@
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import { defineStore } from "pinia";
 import { Temporal } from "temporal-polyfill";
-import { computed, onMounted, ref } from "vue";
+import { onMounted, ref } from "vue";
 import { syncSizeInDays } from "../consts";
 import { toGoal, type Goal, type GoalCreate, type GoalDTO, type GoalUpdate } from "../models/goal";
 import {
@@ -12,7 +12,7 @@ import {
     type SyncState,
     type User,
 } from "../models/misc";
-import { toRun, type Run } from "../models/run";
+import { calcStatRanges, toRun, type Run, type StatRanges } from "../models/run";
 import { useApi } from "./api";
 
 const DEV_NO_AUTO_SYNC = true;
@@ -28,30 +28,9 @@ export const useSession = defineStore("session", () => {
     const goals = ref<Goal[]>([]);
     const runs = ref<Run[]>([]);
 
-    const efficiencyRange = computed(() => {
-        console.log("Recomputing efficiency range");
-        const result = runs.value.reduce(
-            (acc, run) => {
-                for (const stat of run.split_stats) {
-                    const val = stat.efficiency;
+    const statRanges = ref<StatRanges>({});
 
-                    // Filter out undefined, null, or NaN values
-                    if (val !== undefined && val !== null && !isNaN(val)) {
-                        if (val < acc.min) acc.min = val;
-                        if (val > acc.max) acc.max = val;
-                    }
-                }
-                return acc;
-            },
-            { min: Infinity, max: -Infinity },
-        );
-
-        return result.min === Infinity ? undefined : result;
-    });
-
-    onMounted(async () => {
-        await getMe();
-    });
+    onMounted(getMe);
 
     async function logIn(google_access_code?: string) {
         await api.post("/auth/google", google_access_code ? { google_access_code } : undefined, {
@@ -77,7 +56,10 @@ export const useSession = defineStore("session", () => {
         if (user.value!.is_onboarded) {
             await getGoals();
 
-            if (syncState.value?.is_syncing === false && (!import.meta.env.DEV || !DEV_NO_AUTO_SYNC)) {
+            if (
+                syncState.value?.is_syncing === false &&
+                (!import.meta.env.DEV || !DEV_NO_AUTO_SYNC)
+            ) {
                 startSync();
             }
         }
@@ -113,7 +95,11 @@ export const useSession = defineStore("session", () => {
                 const state = toSyncState(JSON.parse(msg.data));
 
                 // If we just finished our onboaring sync, mark it so onboaring doesn't start again!
-                if (false === user.value?.is_onboarded && syncState.value?.is_syncing && false === state.is_syncing) {
+                if (
+                    false === user.value?.is_onboarded &&
+                    syncState.value?.is_syncing &&
+                    false === state.is_syncing
+                ) {
                     user.value.is_onboarded = true;
                 }
 
@@ -132,7 +118,9 @@ export const useSession = defineStore("session", () => {
 
                     if (state.synced_from && state.synced_to) {
                         // Auto-fetch the newly-synced runs (up to 4 weeks if this was a first-time sync).
-                        let from = Temporal.Instant.from(state.synced_from).toZonedDateTimeISO("UTC");
+                        let from = Temporal.Instant.from(state.synced_from).toZonedDateTimeISO(
+                            "UTC",
+                        );
                         const to = Temporal.Instant.from(state.synced_to).toZonedDateTimeISO("UTC");
 
                         if (from.until(to).days > syncSizeInDays) {
@@ -183,7 +171,10 @@ export const useSession = defineStore("session", () => {
         goals.value.splice(goals.value.indexOf(goal), 1);
     }
 
-    async function getRuns(from: Temporal.ZonedDateTime, to: Temporal.ZonedDateTime): Promise<boolean> {
+    async function getRuns(
+        from: Temporal.ZonedDateTime,
+        to: Temporal.ZonedDateTime,
+    ): Promise<boolean> {
         from = from.round({ smallestUnit: "second" });
         to = to.round({ smallestUnit: "second" });
 
@@ -199,10 +190,6 @@ export const useSession = defineStore("session", () => {
             ).data as []
         ).map((r) => toRun(r));
 
-        for (let n of newRuns) {
-            console.log(n.split_stats);
-        }
-
         const gotRuns = newRuns.length > 0;
 
         // Lump all runs rogether and remove dupes
@@ -217,6 +204,7 @@ export const useSession = defineStore("session", () => {
 
         newRuns.sort((a: Run, b: Run) => Temporal.Instant.compare(b.start_time, a.start_time));
 
+        statRanges.value = calcStatRanges(newRuns);
         runs.value = newRuns;
 
         return gotRuns;
@@ -228,7 +216,9 @@ export const useSession = defineStore("session", () => {
         const toTimestamp =
             runs.value.length > 0
                 ? runs.value.reduce((min, cur) =>
-                      Temporal.ZonedDateTime.compare(cur.start_time, min.start_time) < 0 ? cur : min,
+                      Temporal.ZonedDateTime.compare(cur.start_time, min.start_time) < 0
+                          ? cur
+                          : min,
                   ).start_time
                 : Temporal.Now.zonedDateTimeISO("UTC");
         return await getRuns(toTimestamp.subtract({ days: syncSizeInDays }), toTimestamp);
@@ -249,6 +239,6 @@ export const useSession = defineStore("session", () => {
         lastSynced,
         getRuns,
         getPreviousRuns,
-        efficiencyRange,
+        statRanges,
     };
 });

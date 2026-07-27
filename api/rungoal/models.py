@@ -127,6 +127,7 @@ class RunResponse(RunBase):
     id: int
     weather: WeatherResponse | None = None
     split_stats: list["RunSplitStatsResponse"]
+    device_type: DeviceType | None
 
 
 class Run(RunBase, table=True):

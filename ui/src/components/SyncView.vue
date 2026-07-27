@@ -59,15 +59,8 @@ const lastSyncedMsg = computed(() => {
         </button>
     </div>
     <div v-else-if="currentTask" class="progress flex-grow-1 w-100">
-        <div
-            v-if="currentTask.total"
-            class="progress w-100"
-            role="progressbar"
-            :aria-label="currentTask.task"
-            :aria-valuemin="0"
-            :aria-valuemax="total"
-            :aria-valuenow="value"
-        >
+        <div v-if="currentTask.total" class="progress w-100" role="progressbar" :aria-label="currentTask.task"
+            :aria-valuemin="0" :aria-valuemax="total" :aria-valuenow="value">
             <div class="progress-bar overflow-visible" :style="`width: ${(value / total) * 100}%`">
                 {{ currentTask.task }}
             </div>
