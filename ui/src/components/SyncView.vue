@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useDark } from "@vueuse/core";
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import type { SyncState } from "../models/misc";
 import { useSession } from "../stores/session";
@@ -9,12 +10,18 @@ const props = defineProps<{
 
 const session = useSession();
 
+const isDark = useDark();
+
 const startSync = () => session.startSync(undefined, undefined, false);
 
 const currentTask = computed(() =>
-    props.syncState.tasks.length ? props.syncState.tasks[props.syncState.tasks.length - 1] : undefined,
+    props.syncState.tasks.length
+        ? props.syncState.tasks[props.syncState.tasks.length - 1]
+        : undefined,
 );
-const total = computed(() => props.syncState.tasks.reduce((sum, task) => sum + (task.total ?? task.value), 0));
+const total = computed(() =>
+    props.syncState.tasks.reduce((sum, task) => sum + (task.total ?? task.value), 0),
+);
 const value = computed(() => props.syncState.tasks.reduce((sum, task) => sum + task.value, 0));
 
 const secsSinceLastSynced = ref<number>();
@@ -59,14 +66,29 @@ const lastSyncedMsg = computed(() => {
         </button>
     </div>
     <div v-else-if="currentTask" class="progress flex-grow-1 w-100">
-        <div v-if="currentTask.total" class="progress w-100" role="progressbar" :aria-label="currentTask.task"
-            :aria-valuemin="0" :aria-valuemax="total" :aria-valuenow="value">
-            <div class="progress-bar overflow-visible" :style="`width: ${(value / total) * 100}%`">
+        <div
+            v-if="currentTask.total"
+            class="progress w-100"
+            role="progressbar"
+            :aria-label="currentTask.task"
+            :aria-valuemin="0"
+            :aria-valuemax="total"
+            :aria-valuenow="value"
+        >
+            <div
+                class="progress-bar overflow-visible"
+                :class="isDark ? 'text-light' : 'text-dark'"
+                :style="`width: ${(value / total) * 100}%`"
+            >
                 {{ currentTask.task }}
             </div>
         </div>
         <div v-else class="progress w-100" role="progressbar" :aria-label="currentTask.task">
-            <div class="progress-bar progress-bar-animated progress-bar-striped" style="width: 100%">
+            <div
+                class="progress-bar progress-bar-animated progress-bar-striped"
+                :class="isDark ? 'text-light' : 'text-dark'"
+                style="width: 100%"
+            >
                 {{ currentTask.task }}
             </div>
         </div>

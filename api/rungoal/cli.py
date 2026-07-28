@@ -22,6 +22,8 @@ from rungoal.models import (
 from rungoal.sync import sync_runs, sync_runtracker, sync_split_stats, sync_tcx, sync_wx
 from rungoal.utils import ProgressProtocol
 
+from .geo import locate_track
+
 app = typer.Typer()
 
 
@@ -247,6 +249,14 @@ def cmd_clear_runs(user_id: int):
         user.is_onboarded = False
         db.add(user)
         db.commit()
+
+
+@app.command("locate-run")
+def cmd_locate_run(run_id: int):
+    with get_db() as db:
+        run = db.get_one(Run, run_id)
+        rls = locate_track(db, run.track_points)
+        print(", ".join(rl.name for rl in rls))
 
 
 if __name__ == "__main__":

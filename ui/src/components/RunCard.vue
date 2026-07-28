@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import { useDark } from "@vueuse/core";
 import tinygradient from "tinygradient";
 import { computed } from "vue";
-import { type Run, type Weather } from "../models/run";
+import { type Run } from "../models/run";
 import { useSession } from "../stores/session";
 import { currentLocale, distanceAbbr, durationFormatter, formatDec } from "../utils";
 
@@ -19,6 +20,10 @@ const redToGreen = tinygradient([
     { color: "#00ff00", pos: 1 },
 ]);
 
+const isDark = useDark();
+
+console.log("is dark? ", isDark.value);
+
 // Split efficiencies normalized to 0-1
 const normalizedSplitEfficiency = computed(() =>
     session.statRanges.efficiency?.range
@@ -33,23 +38,25 @@ const normalizedSplitEfficiency = computed(() =>
         : [],
 );
 
-const weatherIcon = (wx: Weather | undefined): string | undefined => {
-    if (!wx) return undefined;
+const weatherIcon = computed(() => {
+    if (!props.run.weather) return undefined;
 
-    const r = wx.rain_mm;
-    if (r && r > 2.5) return "bi-cloud-rain-fill";
-    if (r && r > 0) return "bi-cloud-drizzle-fill";
+    const r = props.run.weather.rain_mm;
+    if (r !== undefined) {
+        if (r > 2.5) return "bi-cloud-rain-fill";
+        if (r > 0) return "bi-cloud-drizzle-fill";
+    }
 
-    const c = wx.cloud_cover_pct;
+    const c = props.run.weather.cloud_cover_pct;
     if (c !== undefined) {
         if (c > 75) return "bi-clouds-fill";
         if (c > 50) return "bi-cloud-fill";
         if (c > 25) return "bi-cloud-sun-fill";
         return "bi-sun-fill";
     }
-};
+});
 
-const weatherIconColor = (() => {
+const weatherIconColor = computed(() => {
     if (!props.run.weather) return undefined;
     const r = props.run.weather?.rain_mm ?? 0;
     const c = props.run.weather?.cloud_cover_pct ?? -1;
@@ -57,17 +64,20 @@ const weatherIconColor = (() => {
     if (r > 0) return "dodgerblue";
     if (c > 25) return "gray";
     if (c >= 0) return "gold";
-})();
+});
 
-const deviceTypeIcon = (() => {
+const deviceTypeIcon = computed(() => {
     if (props.run.device_type == "WATCH") return "bi-watch";
     else if (props.run.device_type == "PHONE") return "bi-phone";
-})();
+});
 </script>
 
 <template>
     <div class="col-lg-6">
-        <div class="card bg-body-tertiary rounded-4 border-0">
+        <div
+            class="card rounded-4 border-0"
+            :class="isDark ? 'bg-body-tertiary' : 'bg-body-secondary'"
+        >
             <div class="card-body">
                 <div class="d-flex justify-content-between card-title">
                     <h5 class="text-primary-emphasis">
@@ -90,7 +100,7 @@ const deviceTypeIcon = (() => {
                         ></i>
                         <i
                             class="bi me-3"
-                            :class="weatherIcon(run.weather)"
+                            :class="weatherIcon"
                             style="float: left"
                             :style="{ color: weatherIconColor }"
                         ></i>

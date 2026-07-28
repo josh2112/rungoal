@@ -18,6 +18,39 @@ watch(
         }
     },
 );
+
+import { useDark, useMutationObserver } from "@vueuse/core";
+
+const isDark = useDark({
+    // 1. Tell VueUse to target the 'data-bs-theme' attribute instead of a class
+    attribute: "data-bs-theme",
+    valueDark: "dark",
+    valueLight: "light",
+
+    // 2. Use your application's exact localStorage key
+    storageKey: "rungoal.theme",
+});
+
+// 3. Listen to external mutations (like Chrome DevTools or other scripts)
+useMutationObserver(
+    document.documentElement,
+    (mutations) => {
+        for (const mutation of mutations) {
+            if (mutation.attributeName === "data-bs-theme") {
+                const currentAttr = document.documentElement.getAttribute("data-bs-theme");
+
+                // Keep VueUse's internal ref synchronized with the DOM state
+                if (currentAttr && isDark.value !== (currentAttr === "dark")) {
+                    isDark.value = currentAttr === "dark";
+                }
+            }
+        }
+    },
+    {
+        attributes: true,
+        attributeFilter: ["data-bs-theme"],
+    },
+);
 </script>
 
 <template>

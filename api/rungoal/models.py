@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa
 from pydantic import BaseModel, ConfigDict, EmailStr, model_validator
+from shapely.geometry.base import BaseGeometry
 from sqlalchemy_utils import EncryptedType
 from sqlalchemy_utils.types.encrypted.encrypted_type import AesEngine
 from sqlmodel import AutoString, Field, Relationship, SQLModel
@@ -277,3 +278,27 @@ class SyncRequest(BaseModel):
 class SyncParams(SyncRequest):
     user_id: int
     timezone: ZoneInfo
+
+
+# ========= Geo stuff =========
+
+
+class RunLocationBase(SQLModel):
+    osm_id: int = Field(primary_key=True)
+    name: str
+    boundary_text: str
+
+
+class RunLocationWithBoundary(RunLocationBase):
+    boundary: BaseGeometry
+
+
+class RunLocation(RunLocationBase, table=True):
+    """A place (park, greenway, etc.) where we might have run. These map directly to OpenStreetMap features."""
+
+
+class CachedArea(SQLModel, table=True):
+    """Bounding boxes of previous OpenStreetMap feature searches."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    bbox_text: str

@@ -19,19 +19,17 @@ const goBack = () => {
         router.push("/");
     }
 };
-
-const fart = () => {
-    console.log("fart", accountDialogRef.value);
-    accountDialogRef.value?.open();
-}
 </script>
 
 <template>
     <nav class="navbar sticky-top bg-body-secondary">
-        <div class="container d-grid gap-3 align-items-center" style="grid-template-columns: 1fr auto 1fr">
+        <div
+            class="container d-grid gap-3 align-items-center"
+            style="grid-template-columns: 1fr auto 1fr"
+        >
             <div class="d-flex justify-content-start mt-1">
                 <div v-if="navbarState.title" class="navbar-brand py-0">
-                    <button class="btn text-light text-decoration-none navbar-button" @click="goBack">
+                    <button class="btn text-decoration-none navbar-button" @click="goBack">
                         <i class="bi bi-arrow-left fs-4"></i>
                     </button>
                     <span class="align-middle">{{ navbarState.title }}</span>
@@ -44,11 +42,21 @@ const fart = () => {
                 </div>
             </div>
             <div class="d-flex justify-content-end">
-                <button v-for="action in navbarState.actions" :key="action.icon"
-                    class="btn text-light text-decoration-none navbar-button" @click="() => action.callback()">
-                    <i class="bi" :class="action.icon"></i></button>
-                <a href='#' @click="() => fart()"><img v-if="session.user" class="avatar-circle-32 ms-3"
-                        :src="`${session.user.avatar_uri}=s32-c`" :alt="session.user.name" /></a>
+                <button
+                    v-for="action in navbarState.actions"
+                    :key="action.icon"
+                    class="btn text-decoration-none navbar-button"
+                    @click="() => action.callback()"
+                >
+                    <i class="bi" :class="action.icon"></i>
+                </button>
+                <a href="#" @click="() => accountDialogRef?.open()"
+                    ><img
+                        v-if="session.user"
+                        class="avatar-circle-32 ms-3"
+                        :src="`${session.user.avatar_uri}=s32-c`"
+                        :alt="session.user.name"
+                /></a>
             </div>
         </div>
     </nav>
