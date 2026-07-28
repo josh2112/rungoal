@@ -28,9 +28,35 @@ order by
 select
     datetime('now', '18000 seconds');
 
+select
+    min(alt_meters),
+    max(alt_meters)
+from
+    trackpoint
+where
+    run_id = 382;
 
-select min(alt_meters), max(alt_meters) from trackpoint where run_id = 382;
+select
+    *
+from
+    trackpoint
+where
+    trackpoint.run_id = 386
+    and trackpoint.elapsed_secs >= 1666
+    and trackpoint.elapsed_secs <= 1900;
 
-select * from trackpoint where trackpoint.run_id = 386 and trackpoint.elapsed_secs >= 1666 and trackpoint.elapsed_secs <= 1900;
+select
+    *
+from
+    runsplitstats
+where
+    runsplitstats.run_id = 386;
 
-select * from runsplitstats where runsplitstats.run_id = 386
+select
+    min(rss.efficiency),
+    max(rss.efficiency)
+from
+    runsplitstats as rss
+    join run as r on r.id = rss.run_id
+where
+    r.user_id = 1;

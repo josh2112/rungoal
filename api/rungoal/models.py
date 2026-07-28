@@ -139,7 +139,7 @@ class Run(RunBase, table=True):
     # update time, replace it
     update_time: datetime = Field(sa_column=sa.Column(UTCDateTime(timezone=True)))
 
-    user_id: int | None = Field(default=None, foreign_key="user.id", ondelete="CASCADE")
+    user_id: int | None = Field(index=True, default=None, foreign_key="user.id", ondelete="CASCADE")
     user: User | None = Relationship(back_populates="runs")
 
     data_source: RunDataSource = Field(sa_column=sa.Column(SQLEnum(RunDataSource), nullable=False))
@@ -159,8 +159,16 @@ class Run(RunBase, table=True):
     device_type: DeviceType | None = Field(sa_column=sa.Column(SQLEnum(DeviceType)))
     device_name: str | None
 
-    track_points: list["TrackPoint"] = Relationship(back_populates="run", cascade_delete=True)
-    split_stats: list["RunSplitStats"] = Relationship(back_populates="run", cascade_delete=True)
+    track_points: list["TrackPoint"] = Relationship(
+        back_populates="run",
+        cascade_delete=True,
+        sa_relationship_kwargs={"order_by": "TrackPoint.elapsed_secs"},
+    )
+    split_stats: list["RunSplitStats"] = Relationship(
+        back_populates="run",
+        cascade_delete=True,
+        sa_relationship_kwargs={"order_by": "RunSplitStats.split_secs"},
+    )
     weather: Weather | None = Relationship(back_populates="run", cascade_delete=True)
 
     __table_args__ = (sa.UniqueConstraint(*run_unique_constriant_columns, name="run_unique"),)
@@ -202,6 +210,18 @@ class RunSplitStats(RunSplitStatsResponse, table=True):
 
     run_id: int | None = Field(default=None, foreign_key="run.id", ondelete="CASCADE")
     run: Run | None = Relationship(back_populates="split_stats")
+
+    __table_args__ = (sa.Index("idx_rss_run_efficiency", "run_id", "efficiency"),)
+
+
+class Range(BaseModel):
+    min: float
+    max: float
+    range: float
+
+
+class StatsRanges(BaseModel):
+    efficiency: Range | None
 
 
 class GoalCreate(SQLModel):

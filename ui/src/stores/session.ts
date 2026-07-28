@@ -12,7 +12,7 @@ import {
     type SyncState,
     type User,
 } from "../models/misc";
-import { calcStatRanges, toRun, type Run, type StatRanges } from "../models/run";
+import { toRun, type Run, type StatsRanges } from "../models/run";
 import { useApi } from "./api";
 
 const DEV_NO_AUTO_SYNC = true;
@@ -28,7 +28,7 @@ export const useSession = defineStore("session", () => {
     const goals = ref<Goal[]>([]);
     const runs = ref<Run[]>([]);
 
-    const statRanges = ref<StatRanges>({});
+    const statsRanges = ref<StatsRanges>({});
 
     onMounted(getMe);
 
@@ -61,6 +61,8 @@ export const useSession = defineStore("session", () => {
                 (!import.meta.env.DEV || !DEV_NO_AUTO_SYNC)
             ) {
                 startSync();
+            } else {
+                getStatsRanges();
             }
         }
     }
@@ -128,6 +130,7 @@ export const useSession = defineStore("session", () => {
                         }
 
                         getGoals();
+                        getStatsRanges();
                         getRuns(from, to);
                     }
                 }
@@ -138,6 +141,10 @@ export const useSession = defineStore("session", () => {
                 throw err;
             },
         });
+    }
+
+    async function getStatsRanges() {
+        statsRanges.value = (await api.get("/stats")).data as StatsRanges;
     }
 
     function _set_goals(goalDTOs: GoalDTO[]) {
@@ -188,7 +195,7 @@ export const useSession = defineStore("session", () => {
                     },
                 })
             ).data as []
-        ).map((r) => toRun(r));
+        ).map((r) => toRun(r, settings.value.distance_unit));
 
         const gotRuns = newRuns.length > 0;
 
@@ -204,7 +211,6 @@ export const useSession = defineStore("session", () => {
 
         newRuns.sort((a: Run, b: Run) => Temporal.Instant.compare(b.start_time, a.start_time));
 
-        statRanges.value = calcStatRanges(newRuns);
         runs.value = newRuns;
 
         return gotRuns;
@@ -239,6 +245,6 @@ export const useSession = defineStore("session", () => {
         lastSynced,
         getRuns,
         getPreviousRuns,
-        statRanges,
+        statRanges: statsRanges,
     };
 });

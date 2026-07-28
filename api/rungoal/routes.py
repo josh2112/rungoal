@@ -1,7 +1,7 @@
 import asyncio
-from collections.abc import AsyncIterable
+from collections.abc import AsyncIterable, Callable
 from datetime import UTC, datetime
-from typing import Annotated, cast
+from typing import Annotated, Any, cast
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Cookie, Query, Request, Response, status
@@ -18,13 +18,23 @@ from rungoal.models import (
     GoogleApiAuthCode,
     Run,
     RunResponse,
+    StatsRanges,
     SyncRequest,
     User,
     UserResponse,
 )
 from rungoal.sync_operation import SyncState, sync_start, sync_status, sync_stream
 
-api = APIRouter(prefix="/api")
+
+class RungoalRouter(APIRouter):
+    """A base router that strips null fields out of the result."""
+
+    def add_api_route(self, path: str, endpoint: Callable[..., Any], **kwargs: Any) -> None:
+        kwargs["response_model_exclude_none"] = True
+        super().add_api_route(path, endpoint, **kwargs)
+
+
+api = RungoalRouter(prefix="/api")
 
 used_refresh_tokens = auth.UsedRefreshTokens()
 
@@ -137,6 +147,11 @@ def update_goal(db: DepDb, user: DepUser, goal_id: int, goal: GoalUpdate) -> lis
 def delete_goal(db: DepDb, user: DepUser, goal_id: int):
     crud.delete_goal(db, cast(int, user.id), goal_id)
     return status.HTTP_200_OK
+
+
+@api.get("/stats")
+def get_stats(db: DepDb, user: DepUser) -> StatsRanges:
+    return crud.get_stats(db, cast(int, user.id))
 
 
 @api.get("/runs", response_model=list[RunResponse])

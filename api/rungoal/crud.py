@@ -12,7 +12,10 @@ from rungoal.models import (
     GoalCreate,
     GoalResponse,
     GoalUpdate,
+    Range,
     Run,
+    RunSplitStats,
+    StatsRanges,
     User,
     UserWithGoogleCreds,
 )
@@ -103,6 +106,20 @@ def get_goals(db: Session, user_id: int, timezone: ZoneInfo) -> list[GoalRespons
         GoalResponse(**g[0].model_dump(), current_distance_meters=cast(float, g[1]))
         for g in db.exec(stmt).all()
     ]
+
+
+def get_stats(db: Session, user_id: int) -> StatsRanges:
+    eff_min, eff_max = db.exec(
+        select(func.min(RunSplitStats.efficiency), func.max(RunSplitStats.efficiency))
+        .join(Run)
+        .where(Run.user_id == user_id)
+    ).one()
+    eff_range = (
+        Range(min=eff_min, max=eff_max, range=eff_max - eff_min)
+        if eff_min is not None and eff_max is not None
+        else None
+    )
+    return StatsRanges(efficiency=eff_range)
 
 
 def get_runs(db: Session, user_id: int, from_: datetime, to: datetime) -> Sequence[Run]:
