@@ -60,6 +60,9 @@ class UserWithGoogleCreds(UserResponse):
     )
 
 
+# ===== User =====
+
+
 class User(UserWithGoogleCreds, table=True):
     id: int | None = Field(default=None, primary_key=True)
     runs: list["Run"] = Relationship(back_populates="user", cascade_delete=True)
@@ -69,6 +72,9 @@ class User(UserWithGoogleCreds, table=True):
 class RequestUser(UserResponse):
     id: int
     timezone: str
+
+
+# ===== Weather =====
 
 
 class WeatherBase(SQLModel):
@@ -88,6 +94,38 @@ class Weather(WeatherBase, table=True):
 
     run_id: int | None = Field(default=None, foreign_key="run.id", ondelete="CASCADE")
     run: "Run" = Relationship(back_populates="weather")
+
+
+# ========= Geo stuff =========
+
+
+class RunLocationResponse(SQLModel):
+    osm_id: int = Field(primary_key=True)
+    name: str
+
+
+class RunLocationBase(RunLocationResponse):
+    boundary_text: str
+
+
+class RunLocation(RunLocationBase, table=True):
+    """A place (park, greenway, etc.) where we might have run. These map directly to OpenStreetMap features."""
+
+    runs: list["Run"] = Relationship(back_populates="location")
+
+
+class RunLocationWithBoundary(RunLocationBase):
+    class Config:
+        arbitrary_types_allowed = True
+
+    boundary: BaseGeometry
+
+
+class CachedArea(SQLModel, table=True):
+    """Bounding boxes of previous OpenStreetMap feature searches."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    bbox_text: str
 
 
 class RunDataSource(StrEnum):
@@ -129,6 +167,7 @@ class RunResponse(RunBase):
     weather: WeatherResponse | None = None
     split_stats: list["RunSplitStatsResponse"]
     device_type: DeviceType | None
+    location: RunLocationResponse | None
 
 
 class Run(RunBase, table=True):
@@ -171,6 +210,9 @@ class Run(RunBase, table=True):
         sa_relationship_kwargs={"order_by": "RunSplitStats.split_secs"},
     )
     weather: Weather | None = Relationship(back_populates="run", cascade_delete=True)
+
+    location_id: int | None = Field(default=None, foreign_key="runlocation.osm_id")
+    location: RunLocation | None = Relationship(back_populates="runs")
 
     __table_args__ = (sa.UniqueConstraint(*run_unique_constriant_columns, name="run_unique"),)
 
@@ -278,27 +320,3 @@ class SyncRequest(BaseModel):
 class SyncParams(SyncRequest):
     user_id: int
     timezone: ZoneInfo
-
-
-# ========= Geo stuff =========
-
-
-class RunLocationBase(SQLModel):
-    osm_id: int = Field(primary_key=True)
-    name: str
-    boundary_text: str
-
-
-class RunLocationWithBoundary(RunLocationBase):
-    boundary: BaseGeometry
-
-
-class RunLocation(RunLocationBase, table=True):
-    """A place (park, greenway, etc.) where we might have run. These map directly to OpenStreetMap features."""
-
-
-class CachedArea(SQLModel, table=True):
-    """Bounding boxes of previous OpenStreetMap feature searches."""
-
-    id: int | None = Field(default=None, primary_key=True)
-    bbox_text: str

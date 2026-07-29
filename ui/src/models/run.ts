@@ -17,6 +17,11 @@ export interface RunSplitStats {
     efficiency?: number;
 }
 
+interface RunLocation {
+    osm_id: number;
+    name: string;
+}
+
 interface RunDTO {
     id: number;
     start_time: string;
@@ -27,6 +32,7 @@ interface RunDTO {
     weather?: Weather;
     split_stats: RunSplitStats[];
     device_type?: "WATCH" | "PHONE";
+    location?: RunLocation;
 }
 
 export interface Run extends Omit<RunDTO, "start_time" | "active_duration"> {
@@ -45,9 +51,7 @@ export const toRun = (dto: RunDTO, distUnit: DistanceUnit): Run => ({
     }),
     distance: distanceConvert(dto.distance_millimeters, "millimeters", distUnit),
     average_pace: Temporal.Duration.from(
-        `PT${Math.round(
-            1.0 / distanceConvert(1.0 / dto.average_pace_seconds_per_meter, "meters", distUnit),
-        )}S`,
+        `PT${Math.round(1.0 / distanceConvert(1.0 / dto.average_pace_seconds_per_meter, "meters", distUnit))}S`,
     ).round({
         largestUnit: "minute",
     }),

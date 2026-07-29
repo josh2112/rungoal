@@ -2,7 +2,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Sequence, cast
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -12,6 +12,7 @@ from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session, col, delete, select
 
+from rungoal.geo import sync_locations
 from rungoal.google import GoogleHealthClient
 from rungoal.import_runtracker import RuntrackerGoal
 from rungoal.models import (
@@ -59,8 +60,9 @@ def sync_runs(
     to: datetime | None = None,
     runtracker_db_path: Annotated[Path, typer.Argument(dir_okay=False, exists=True)] | None = None,
     runtracker_tz: ZoneInfo | None = None,
-    tcx: bool = True,
-    wx: bool = True,
+    do_trackpoints: bool = True,
+    do_weather: bool = True,
+    do_location: bool = True,
 ) -> TimeRange:
     if runtracker_db_path and not runtracker_tz:
         raise ValueError("Please supply a time zone for Runtracker imports")
@@ -113,11 +115,13 @@ def sync_runs(
         raise
 
     updated_runs = _update_runs(client.db, runs, span)
-    if tcx:
+    if do_trackpoints:
         sync_tcx(client, progress, updated_runs)
-    if wx:
+        sync_split_stats(client.db, progress, updated_runs)
+    if do_weather:
         sync_wx(client.db, progress, updated_runs)
-    sync_split_stats(client.db, progress, updated_runs)
+    if do_location:
+        sync_locations(client.db, progress, updated_runs)
     if runtracker_db_path:
         try:
             sync_runtracker(client, progress, runtracker_db_path, runtracker_tz)
@@ -134,7 +138,7 @@ def sync_runs(
 # 3) Existing runs with a new run matching their ID are updated if the new run's update time
 # is newer than the existing run's update time.
 # Returns list of runs that were added or updated.
-def _update_runs(db: Session, runs: list[Run], timespan: TimeRange) -> list[RunFetchContext]:
+def _update_runs(db: Session, runs: list[Run], timespan: TimeRange) -> Sequence[Run]:
     if not runs:
         return []
 
@@ -171,9 +175,10 @@ def _update_runs(db: Session, runs: list[Run], timespan: TimeRange) -> list[RunF
             where=sql.excluded.update_time > Run.update_time,
         ).returning(Run)
     ).all()
+
     db.commit()
 
-    return [RunFetchContext.model_validate(r) for r in updated_runs]
+    return updated_runs
 
 
 def sync_runtracker(
@@ -296,7 +301,7 @@ def sync_runtracker(
         client.db.commit()
 
 
-def sync_tcx(client: GoogleHealthClient, progress: ProgressProtocol, runs: list[RunFetchContext]):
+def sync_tcx(client: GoogleHealthClient, progress: ProgressProtocol, runs: Sequence[Run]):
     task = "Downloading TCX files..."
     progress.start_task(task, total=len(runs) + 1)
 
@@ -320,7 +325,7 @@ def sync_tcx(client: GoogleHealthClient, progress: ProgressProtocol, runs: list[
     client.db.commit()
 
 
-def sync_wx(db: Session, progress: ProgressProtocol, runs: list[RunFetchContext]):
+def sync_wx(db: Session, progress: ProgressProtocol, runs: Sequence[Run]):
     task = "Downloading weather..."
     progress.start_task(task, total=len(runs))
 
@@ -352,7 +357,7 @@ def sync_wx(db: Session, progress: ProgressProtocol, runs: list[RunFetchContext]
         db.commit()
 
 
-def sync_split_stats(db: Session, progress: ProgressProtocol, runs: list[RunFetchContext]):
+def sync_split_stats(db: Session, progress: ProgressProtocol, runs: Sequence[Run]):
     task = "Calculating split stats..."
     progress.start_task(task, total=len(runs))
 
@@ -361,6 +366,6 @@ def sync_split_stats(db: Session, progress: ProgressProtocol, runs: list[RunFetc
     db.commit()
 
     for run in runs:
-        db.add_all(calc_split_stats(db, run.id, 300))
+        db.add_all(calc_split_stats(db, cast(int, run.id), 300))
         progress.advance(task)
     db.commit()

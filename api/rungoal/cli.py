@@ -14,7 +14,6 @@ from rungoal.database import get_db
 from rungoal.google import GoogleHealthClient
 from rungoal.models import (
     Run,
-    RunFetchContext,
     RunSplitStats,
     TrackPoint,
     Weather,
@@ -22,7 +21,7 @@ from rungoal.models import (
 from rungoal.sync import sync_runs, sync_runtracker, sync_split_stats, sync_tcx, sync_wx
 from rungoal.utils import ProgressProtocol
 
-from .geo import locate_track
+from .geo import sync_locations
 
 app = typer.Typer()
 
@@ -79,6 +78,7 @@ def cmd_sync_runs(
     runtracker_tz: str | None = None,
     tcx: Annotated[bool, typer.Option(help="Sync TCX files")] = True,
     wx: Annotated[bool, typer.Option(help="Sync weather")] = True,
+    loc: Annotated[bool, typer.Option(help="Sync run locations")] = True,
 ):
     if runtracker_db_path and not runtracker_tz:
         raise ValueError("Please supply a time zone for Runtracker imports")
@@ -87,7 +87,7 @@ def cmd_sync_runs(
         user = get_user(db, user_id)
         with GoogleHealthClient(user, db) as client, CliProgress() as progress:
             zone = ZoneInfo(runtracker_tz) if runtracker_tz else None
-            sync_runs(client, progress, from_, to, runtracker_db_path, zone, tcx, wx)
+            sync_runs(client, progress, from_, to, runtracker_db_path, zone, tcx, wx, loc)
 
 
 @app.command(
@@ -120,7 +120,7 @@ def cmd_sync_tcx(user_id: int, from_: datetime, to: datetime | None = None, repl
             sql = sql.where(col(Run.id).notin_(select(TrackPoint.run_id)))
         runs = db.exec(sql).all()
         with GoogleHealthClient(user, db) as client:
-            sync_tcx(client, progress, [RunFetchContext.model_validate(r) for r in runs])
+            sync_tcx(client, progress, runs)
 
 
 @app.command("sync-weather", help="Syncs weather data for runs in the given timespan.")
@@ -140,7 +140,7 @@ def cmd_sync_weather(
         if not replace:
             sql = sql.where(col(Run.id).notin_(select(Weather.run_id)))
         runs = db.exec(sql).all()
-        sync_wx(db, progress, [RunFetchContext.model_validate(r) for r in runs])
+        sync_wx(db, progress, runs)
 
 
 @app.command("sync-split-stats", help="Syncs split stats for runs in the given timespan.")
@@ -160,7 +160,29 @@ def cmd_sync_split_stats(
         if not replace:
             sql = sql.where(col(Run.id).notin_(select(RunSplitStats.run_id)))
         runs = db.exec(sql).all()
-        sync_split_stats(db, progress, [RunFetchContext.model_validate(r) for r in runs])
+        sync_split_stats(db, progress, runs)
+
+
+@app.command("sync-locations", help="Syncs run locations for runs in the given timespan.")
+def cmd_sync_locations(
+    user_id: int, from_: datetime, to: datetime | None = None, replace: bool = False
+):
+    with get_db() as db, CliProgress() as progress:
+        user = get_user(db, user_id)
+        # Select runs for this user and timespan for which we don't already have location data
+        sql = (
+            select(Run)
+            .where(Run.user_id == user.id)
+            .where(Run.start_time >= from_.replace(tzinfo=UTC))
+            .where(col(Run.track_points).any())
+        )
+        if to:
+            sql = sql.where(Run.end_time <= to.replace(tzinfo=UTC))
+        if not replace:
+            sql = sql.where(col(Run.location_id).is_(None))
+        runs = db.exec(sql).all()
+
+        sync_locations(db, progress, list(runs))
 
 
 @app.command(
@@ -220,9 +242,8 @@ def cmd_plot_alt(run_ids: Annotated[IntRangeArgument, typer.Argument(parser=pars
     "init-db", help="Deletes and recreates the database, optionally recreating revision data."
 )
 def cmd_init_db(regen: bool = False):
-    from alembic.config import Config
-
     from alembic import command
+    from alembic.config import Config
 
     alembic_config = Config("alembic.ini")
 
@@ -249,14 +270,6 @@ def cmd_clear_runs(user_id: int):
         user.is_onboarded = False
         db.add(user)
         db.commit()
-
-
-@app.command("locate-run")
-def cmd_locate_run(run_id: int):
-    with get_db() as db:
-        run = db.get_one(Run, run_id)
-        rls = locate_track(db, run.track_points)
-        print(", ".join(rl.name for rl in rls))
 
 
 if __name__ == "__main__":

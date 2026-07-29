@@ -22,19 +22,13 @@ const redToGreen = tinygradient([
 
 const isDark = useDark();
 
-console.log("is dark? ", isDark.value);
-
 // Split efficiencies normalized to 0-1
 const normalizedSplitEfficiency = computed(() =>
     session.statRanges.efficiency?.range
         ? props.run.split_stats
               .map((ss) => ss.efficiency)
               .filter((eff): eff is number => eff !== undefined)
-              .map(
-                  (eff) =>
-                      (eff - session.statRanges.efficiency!.min) /
-                      session.statRanges.efficiency!.range,
-              )
+              .map((eff) => (eff - session.statRanges.efficiency!.min) / session.statRanges.efficiency!.range)
         : [],
 );
 
@@ -70,55 +64,60 @@ const deviceTypeIcon = computed(() => {
     if (props.run.device_type == "WATCH") return "bi-watch";
     else if (props.run.device_type == "PHONE") return "bi-phone";
 });
+
+const runName = computed(() => {
+    if (props.run.start_time.hour < 11) return "Morning Run";
+    if (props.run.start_time.hour < 14) return "Midday Run";
+    if (props.run.start_time.hour < 17) return "Afternoon Run";
+    return "Evening Run";
+});
 </script>
 
 <template>
     <div class="col-lg-6">
-        <div
-            class="card rounded-4 border-0"
-            :class="isDark ? 'bg-body-tertiary' : 'bg-body-secondary'"
-        >
+        <div class="card rounded-4 border-0" :class="isDark ? 'bg-body-tertiary' : 'bg-body-secondary'">
             <div class="card-body">
                 <div class="d-flex justify-content-between card-title">
-                    <h5 class="text-primary-emphasis">
-                        {{
-                            run.start_time.toLocaleString(currentLocale, {
-                                dateStyle: "full",
-                            })
-                        }}
-                    </h5>
+                    <h5 class="text-primary-emphasis">{{ runName }}</h5>
                     <h5 class="text-end">{{ formatDec(run.distance, 2) }} {{ distAbbr }}</h5>
                 </div>
                 <div class="d-flex justify-content-between card-text">
                     <div>
-                        <div v-if="run.calories">{{ run.calories }} cal</div>
-                        <i
-                            v-if="run.device_type == 'WATCH'"
-                            class="bi me-2 text-primary-emphasis"
-                            :class="deviceTypeIcon"
-                            style="float: left"
-                        ></i>
-                        <i
-                            class="bi me-3"
-                            :class="weatherIcon"
-                            style="float: left"
-                            :style="{ color: weatherIconColor }"
-                        ></i>
-                        <div class="eff-sq-container">
-                            <div
-                                v-for="eff in normalizedSplitEfficiency"
-                                class="eff-sq"
-                                :style="{ backgroundColor: redToGreen.rgbAt(eff).toHexString() }"
-                            />
+                        <div>
+                            {{
+                                run.start_time.toLocaleString(currentLocale, {
+                                    weekday: "long",
+                                    month: "long",
+                                    day: "numeric",
+                                    hour: "numeric",
+                                    minute: "numeric",
+                                })
+                            }}
+                        </div>
+                        <div v-if="run.location">{{ run.location.name }}</div>
+                        <div class="d-flex align-items-center mt-2">
+                            <div v-if="normalizedSplitEfficiency.length > 0" class="eff-sq-container me-3">
+                                <div
+                                    v-for="eff in normalizedSplitEfficiency"
+                                    class="eff-sq"
+                                    :style="{ backgroundColor: redToGreen.rgbAt(eff).toHexString() }"
+                                />
+                            </div>
+                            <i
+                                v-if="run.device_type == 'WATCH'"
+                                class="bi me-3 text-primary-emphasis"
+                                :class="deviceTypeIcon"
+                            ></i>
+                            <i class="bi" :class="weatherIcon" :style="{ color: weatherIconColor }"></i>
                         </div>
                     </div>
                     <div class="text-end">
+                        <div>{{ durationFormatter(run.average_pace) }} min/{{ distAbbr }}</div>
+
                         <div>
-                            {{ durationFormatter.format(run.active_duration) }}
+                            {{ durationFormatter(run.active_duration) }}
                         </div>
-                        <div>
-                            {{ durationFormatter.format(run.average_pace) }} min/{{ distAbbr }}
-                        </div>
+                        <div class="mt-1" v-if="run.calories">{{ run.calories }} cal</div>
                     </div>
                 </div>
             </div>
@@ -128,7 +127,6 @@ const deviceTypeIcon = computed(() => {
 
 <style scoped>
 .eff-sq-container {
-    margin-top: 8px;
     display: flex;
     gap: 2px;
     border-radius: 5px;

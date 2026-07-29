@@ -1,10 +1,13 @@
-from typing import cast
+import math
+from typing import Sequence, cast
 
 import osmnx as ox
 from shapely import LineString, STRtree, box, unary_union, wkt
 from sqlmodel import Session, select
 
-from .models import CachedArea, RunLocation, RunLocationWithBoundary, TrackPoint
+from rungoal.utils import ProgressProtocol
+
+from .models import CachedArea, Run, RunLocation, RunLocationWithBoundary, TrackPoint
 
 
 class SpatialIndex:
@@ -23,63 +26,76 @@ class SpatialIndex:
         )
         self.tree = STRtree([rl.boundary for rl in self.run_locations])
 
-    def locate_track(self, trackpoints: list[TrackPoint]):
+    def locate_track(self, trackpoints: list[TrackPoint]) -> RunLocationWithBoundary | None:
         track = LineString((tp.lon_deg, tp.lat_deg) for tp in trackpoints)
         matches = self.tree.query(track)
-        return [
-            rl
+        matches_by_length = {
+            rl.boundary.intersection(track).length: rl
             for i, rl in enumerate(self.run_locations)
             if i in matches and rl.boundary.intersects(track)
-        ]
+        }
+        return matches_by_length[max(matches_by_length.keys())] if matches_by_length else None
 
 
 _spatial_index: SpatialIndex | None = None
 
+GRID_SIZE = 0.05
 
-# TODO: Add progress
-def locate_track(db: Session, trackpoints: list[TrackPoint]) -> list[RunLocationWithBoundary]:
+
+def sync_locations(db: Session, progress: ProgressProtocol, runs: Sequence[Run]):
     global _spatial_index
     if not _spatial_index:
         _spatial_index = SpatialIndex(list(db.exec(select(RunLocation)).all()))
 
-    # Get the run's padded bounding box
-    # This will have problems if a run crosses the international date line :-/
-    bbox = box(
-        min(tp.lon_deg for tp in trackpoints),
-        min(tp.lat_deg for tp in trackpoints),
-        max(tp.lon_deg for tp in trackpoints),
-        max(tp.lat_deg for tp in trackpoints),
-    ).buffer(0.03)
+    task = "Syncing run locations"
 
-    # Combine all previously-searched areas and get the bounds
-    cached_areas = [wkt.loads(ca.bbox_text) for ca in db.exec(select(CachedArea)).all()]
-    cached_area = unary_union(cached_areas) if cached_areas else box(0, 0, 0, 0)
+    progress.start_task(task, total=len(runs))
 
-    if not cached_area.contains(bbox):
-        print("New territory! Dodnloadningr from OSM")
+    for run in runs:
+        # Get the run's quantized bounding box
+        # This will have problems if a run crosses the international date line :-/
+        bbox = box(
+            math.floor(min(tp.lon_deg for tp in run.track_points) / GRID_SIZE) * GRID_SIZE,
+            math.floor(min(tp.lat_deg for tp in run.track_points) / GRID_SIZE) * GRID_SIZE,
+            math.ceil(max(tp.lon_deg for tp in run.track_points) / GRID_SIZE) * GRID_SIZE,
+            math.ceil(max(tp.lat_deg for tp in run.track_points) / GRID_SIZE) * GRID_SIZE,
+        )
 
-        # Fetch list of likely running places from OpenStreetMap. Exclude point features and those without names.
-        places = ox.features_from_polygon(bbox, {"leisure": ["park", "nature_reserve"]})
-        places = places[places.geometry.type.isin(["Polygon"])]
-        if "name" in places.columns:
-            places = places[places["name"].notna()]
-        else:
-            places.iloc[0:0]
+        # Combine all previously-searched areas and get the bounds
+        cached_areas = [wkt.loads(ca.bbox_text) for ca in db.exec(select(CachedArea)).all()]
+        cached_area = unary_union(cached_areas) if cached_areas else box(0, 0, 0, 0)
 
-        existing_osm_ids = db.exec(select(RunLocation.osm_id)).all()
+        if not cached_area.contains(bbox):
+            # Fetch list of likely running places from OpenStreetMap. Exclude point features and those without names.
+            places = ox.features_from_polygon(
+                bbox, {"leisure": ["park", "nature_reserve", "track"]}
+            )
+            places = places[places.geometry.type.isin(["Polygon"])]
+            if "name" in places.columns:
+                places = places[places["name"].notna()]
+            else:
+                places.iloc[0:0]
 
-        for id_, row in places.iterrows():
-            osm_id = cast(int, id_[1] if isinstance(id_, tuple) else id_)
+            existing_osm_ids = db.exec(select(RunLocation.osm_id)).all()
 
-            print(f" - Adding park {row['name']}")
-            if osm_id not in existing_osm_ids:
-                run_location = RunLocation(
-                    osm_id=osm_id, name=row["name"], boundary_text=row.geometry.wkt
-                )
-                db.add(run_location)
-                _spatial_index.add(run_location)
+            for id_, row in places.iterrows():
+                osm_id = cast(int, id_[1] if isinstance(id_, tuple) else id_)
 
-        db.add(CachedArea(bbox_text=bbox.wkt))
-        db.commit()
+                if osm_id not in existing_osm_ids:
+                    run_location = RunLocation(
+                        osm_id=osm_id, name=row["name"], boundary_text=row.geometry.wkt
+                    )
+                    db.add(run_location)
+                    _spatial_index.add(run_location)
 
-    return _spatial_index.locate_track(trackpoints)
+            db.add(CachedArea(bbox_text=bbox.wkt))
+
+        location = _spatial_index.locate_track(run.track_points)
+
+        if location:
+            run.location_id = location.osm_id
+            db.add(run)
+
+        progress.advance(task)
+
+    db.commit()

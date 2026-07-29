@@ -1,16 +1,19 @@
 import { Temporal } from "temporal-polyfill";
 
-import { DurationFormat } from "@formatjs/intl-durationformat";
-
-export const currentLocale = new Intl.DateTimeFormat().resolvedOptions().locale;
+export const { locale: currentLocale, timeZone: currentTimeZone } = new Intl.DateTimeFormat().resolvedOptions();
 
 export const parseUtcDateTime = (str: string): Temporal.ZonedDateTime =>
-    Temporal.Instant.from(str).toZonedDateTimeISO("UTC");
+    Temporal.Instant.from(str).toZonedDateTimeISO("UTC").withTimeZone(currentTimeZone);
 
-export const durationFormatter = new DurationFormat("en", {
-    style: "digital",
-    hoursDisplay: "auto",
-});
+export const durationFormatter = (duration: Temporal.Duration) => {
+    const paddedSeconds = String(duration.seconds).padStart(2, "0");
+
+    if (duration.hours == 0) {
+        return `${duration.minutes}:${paddedSeconds}`;
+    } else {
+        `${duration.hours}:${String(duration.seconds).padStart(2, "0")}:${paddedSeconds}`;
+    }
+};
 
 export function formatDec(num: number, maxDecimals: number): string {
     return num.toLocaleString("en-US", {
