@@ -4,7 +4,6 @@ from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa
 from pydantic import BaseModel, ConfigDict, EmailStr, model_validator
-from shapely.geometry.base import BaseGeometry
 from sqlalchemy_utils import EncryptedType
 from sqlalchemy_utils.types.encrypted.encrypted_type import AesEngine
 from sqlmodel import AutoString, Field, Relationship, SQLModel
@@ -100,7 +99,7 @@ class Weather(WeatherBase, table=True):
 
 
 class RunLocationResponse(SQLModel):
-    osm_id: int = Field(primary_key=True)
+    osm_id: str = Field(primary_key=True)
     name: str
 
 
@@ -115,10 +114,7 @@ class RunLocation(RunLocationBase, table=True):
 
 
 class RunLocationWithBoundary(RunLocationBase):
-    class Config:
-        arbitrary_types_allowed = True
-
-    boundary: BaseGeometry
+    boundary: list[list[tuple[float, float]]]
 
 
 class CachedArea(SQLModel, table=True):
