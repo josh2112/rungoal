@@ -239,11 +239,19 @@ def cmd_plot_alt(run_ids: Annotated[IntRangeArgument, typer.Argument(parser=pars
 
 
 @app.command(
-    "init-db", help="Deletes and recreates the database, optionally recreating revision data."
+    "init-db", help="Deletes and recreates the database, optionally deleting revision scripts."
 )
-def cmd_init_db(regen: bool = False):
-    from alembic import command
+def cmd_init_db(
+    regen: Annotated[
+        bool,
+        typer.Option(
+            help="Delete all Alembic migration scripts and generate a single revision",
+        ),
+    ] = False,
+):
     from alembic.config import Config
+
+    from alembic import command
 
     alembic_config = Config("alembic.ini")
 
@@ -251,7 +259,7 @@ def cmd_init_db(regen: bool = False):
     if url := alembic_config.get_main_option("sqlalchemy.url"):
         Path(url.split("sqlite:///")[-1]).unlink(missing_ok=True)
 
-    if regen:
+    if regen and typer.confirm("Regenerate revisions: Are you sure?"):
         # Wipe all revisions and generate a new initial revision
         for p in Path("alembic/versions").glob("*.py"):
             p.unlink()
