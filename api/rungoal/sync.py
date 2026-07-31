@@ -1,8 +1,9 @@
 import logging
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
-from typing import Annotated, Sequence, cast
+from typing import Annotated, cast
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -12,7 +13,6 @@ from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session, col, delete, select
 
-from rungoal.geo import sync_locations
 from rungoal.google import GoogleHealthClient
 from rungoal.import_runtracker import RuntrackerGoal
 from rungoal.models import (
@@ -30,6 +30,8 @@ from rungoal.models import (
 from rungoal.open_meteo import OpenMeteoClient
 from rungoal.stats import calc_split_stats
 from rungoal.utils import ProgressProtocol, TimeRange
+
+from .run_location import OverpassClient, sync_locations
 
 # Only grab at most _RUN_FETCH_DAYS days of data at a time to avoid this Google Health API v4 bug:
 # https://issuetracker.google.com/issues/510170708
@@ -121,7 +123,7 @@ def sync_runs(
     if do_weather:
         sync_wx(client.db, progress, updated_runs)
     if do_location:
-        sync_locations(client.db, progress, updated_runs)
+        sync_locations(client.db, OverpassClient(), progress, updated_runs)
     if runtracker_db_path:
         try:
             sync_runtracker(client, progress, runtracker_db_path, runtracker_tz)

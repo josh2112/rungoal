@@ -62,3 +62,8 @@ WHERE NOT EXISTS (
     FROM weather AS w 
     WHERE w.run_id = r.id
 );
+
+-- Clear run location data
+update run set location_id = NULL;
+delete from runlocation;
+delete from cachedarea;

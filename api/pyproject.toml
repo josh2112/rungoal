@@ -6,22 +6,22 @@ readme = "README.md"
 authors = [
     { name = "Joshua Foster", email = "josh2112@gmail.com" }
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
-    "alembic>=1.18.4",
+    "alembic>=1.18.5",
     "email-validator>=2.3.0",
-    "fastapi>=0.139.2",
-    "google-api-python-client>=2.197.0",
+    "fastapi>=0.141.1",
+    "google-api-python-client>=2.198.0",
     "google-auth-oauthlib>=1.4.0",
     "httpx>=0.28.1",
-    "osmnx>=2.1.1",
+    "httpx-retries>=0.6.0",
     "pydantic-settings>=2.14.2",
     "python-jose[cryptography]>=3.5.0",
     "sqlalchemy-utils>=0.42.1",
-    "sqlmodel>=0.0.38",
-    "typer>=0.26.7",
+    "sqlmodel>=0.0.39",
+    "typer>=0.27.0",
     "tzdata>=2026.3",
-    "uvicorn>=0.51.0",
+    "uvicorn>=0.52.0",
 ]
 
 [project.scripts]
@@ -43,7 +43,6 @@ select = ["ALL"]
 [dependency-groups]
 dev = [
     "fastapi-cli>=0.0.32",
-    "matplotlib>=3.11.1",
 ]
 
 [tool.ruff]

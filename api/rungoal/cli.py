@@ -18,10 +18,11 @@ from rungoal.models import (
     TrackPoint,
     Weather,
 )
+from rungoal.run_location import OverpassClient
 from rungoal.sync import sync_runs, sync_runtracker, sync_split_stats, sync_tcx, sync_wx
 from rungoal.utils import ProgressProtocol
 
-from .geo import sync_locations
+from .run_location import sync_locations
 
 app = typer.Typer()
 
@@ -167,7 +168,7 @@ def cmd_sync_split_stats(
 def cmd_sync_locations(
     user_id: int, from_: datetime, to: datetime | None = None, replace: bool = False
 ):
-    with get_db() as db, CliProgress() as progress:
+    with get_db() as db, CliProgress() as progress, OverpassClient() as client:
         user = get_user(db, user_id)
         # Select runs for this user and timespan for which we don't already have location data
         sql = (
@@ -182,7 +183,7 @@ def cmd_sync_locations(
             sql = sql.where(col(Run.location_id).is_(None))
         runs = db.exec(sql).all()
 
-        sync_locations(db, progress, list(runs))
+        sync_locations(db, client, progress, runs)
 
 
 @app.command(
@@ -251,8 +252,6 @@ def cmd_init_db(
 ):
     from alembic.config import Config
 
-    from alembic import command
-
     alembic_config = Config("alembic.ini")
 
     # Delete the DB
@@ -270,8 +269,8 @@ def cmd_init_db(
     command.upgrade(alembic_config, "head")
 
 
-@app.command("clear-runs")
-def cmd_clear_runs(user_id: int):
+@app.command("reset-user")
+def reset_user(user_id: int):
     with get_db() as db:
         db.exec(delete(Run).where(col(Run.user_id) == user_id))
         user = get_user(db, 1)

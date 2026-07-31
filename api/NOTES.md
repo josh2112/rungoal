@@ -1,17 +1,12 @@
 ## TODO
 
 Add an endpoint which returns 'interesting' runs:
- - Longest run
- - Hottest/coldest runs (by apparent temperature)
- - earliest/latest run
- - Most efficient run
- - Wettest run
 
-- Figure out likely running location (Sherman Branch, Veteran's Park, etc.) computed from GPS track
-    - Geohash 7 chars
-    - Refer to Gemini chat about how to download local park data boundaries and convert to geohash set
-    - Precompute set of geohashed trackpoints for run
-    - Find the park with the most overlap between park geohashes and run trackpoint geohashes
+- Longest run
+- Hottest/coldest runs (by apparent temperature)
+- earliest/latest run
+- Most efficient run
+- Wettest run
 
 - Heatmap: Make a histogram grid of run trackpoint geohashes. Probably a library for this.
 

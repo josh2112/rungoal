@@ -4,13 +4,14 @@ from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa
 from pydantic import BaseModel, ConfigDict, EmailStr, model_validator
-from shapely.geometry.base import BaseGeometry
 from sqlalchemy_utils import EncryptedType
 from sqlalchemy_utils.types.encrypted.encrypted_type import AesEngine
 from sqlmodel import AutoString, Field, Relationship, SQLModel
 from sqlmodel import Enum as SQLEnum
 
 from rungoal.settings import settings
+
+from .geometry import MultiPolygon
 
 
 class UTCDateTime(sa.types.TypeDecorator):
@@ -100,7 +101,7 @@ class Weather(WeatherBase, table=True):
 
 
 class RunLocationResponse(SQLModel):
-    osm_id: int = Field(primary_key=True)
+    osm_id: str = Field(primary_key=True)
     name: str
 
 
@@ -118,7 +119,7 @@ class RunLocationWithBoundary(RunLocationBase):
     class Config:
         arbitrary_types_allowed = True
 
-    boundary: BaseGeometry
+    boundary: MultiPolygon
 
 
 class CachedArea(SQLModel, table=True):
@@ -211,7 +212,7 @@ class Run(RunBase, table=True):
     )
     weather: Weather | None = Relationship(back_populates="run", cascade_delete=True)
 
-    location_id: int | None = Field(default=None, foreign_key="runlocation.osm_id")
+    location_id: str | None = Field(default=None, foreign_key="runlocation.osm_id")
     location: RunLocation | None = Relationship(back_populates="runs")
 
     __table_args__ = (sa.UniqueConstraint(*run_unique_constriant_columns, name="run_unique"),)
@@ -309,12 +310,12 @@ class Error(BaseModel):
 
 
 class SyncRequest(BaseModel):
+    class Config:
+        populate_by_name = True
+
     from_: datetime | None = Field(alias="from", default=None)
     to: datetime | None = None
     include_runtracker: bool
-
-    class Config:
-        populate_by_name = True
 
 
 class SyncParams(SyncRequest):
