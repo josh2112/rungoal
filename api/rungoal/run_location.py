@@ -1,4 +1,3 @@
-import json
 import math
 from collections.abc import Sequence
 
@@ -8,45 +7,10 @@ from sqlmodel import Session, select
 
 from rungoal.utils import ProgressProtocol
 
+from .geometry import BoundingBox, MultiPolygon
 from .models import CachedArea, Run, RunLocation, RunLocationWithBoundary
 
 GRID_SIZE = 0.05
-
-
-class BoundingBox:
-    def __init__(self, min_lat: float, min_lon: float, max_lat: float, max_lon: float):
-        self.min_lat, self.min_lon, self.max_lat, self.max_lon = min_lat, min_lon, max_lat, max_lon
-
-    @classmethod
-    def from_json(cls, json_str: str) -> "BoundingBox":
-        return BoundingBox(*json.loads(json_str))
-
-    @classmethod
-    def from_points(cls, points: Sequence[tuple[float, float]]) -> "BoundingBox":
-        lats, lons = [p[0] for p in points], [p[1] for p in points]
-        return BoundingBox(
-            min_lat=min(lats), min_lon=min(lons), max_lat=max(lats), max_lon=max(lons)
-        )
-
-    @classmethod
-    def from_run_location(cls, run_location: RunLocationWithBoundary) -> "BoundingBox":
-        points = [p for poly in run_location.boundary for p in poly]
-        return BoundingBox.from_points(points)
-
-    def to_json(self) -> str:
-        return json.dumps([self.min_lat, self.min_lon, self.max_lat, self.max_lon])
-
-    def contains(self, lat: float, lon: float) -> bool:
-        return self.min_lat <= lat <= self.max_lat and self.min_lon <= lon <= self.max_lon
-
-    def intersects(self, other: "BoundingBox") -> bool:
-        return (
-            (self.min_lat < other.min_lat < self.max_lat)
-            or (self.min_lat < other.max_lat < self.max_lat)
-        ) and (
-            (self.min_lon < other.min_lon < self.max_lon)
-            or (self.min_lon < other.max_lon < self.max_lon)
-        )
 
 
 class OverpassClient(httpx.Client):
@@ -86,39 +50,17 @@ class OverpassClient(httpx.Client):
                     if member.get("role") == "outer" and "geometry" in member:
                         polys.append([(node["lat"], node["lon"]) for node in member["geometry"]])
 
-            polys = [p for p in polys if len(p) > 2]
-            if polys:
+            boundary = MultiPolygon([p for p in polys if len(p) > 2])
+            if boundary.polygons:
                 run_locations.append(
                     RunLocationWithBoundary(
                         osm_id=f"{element['type'][0]}{element['id']}",
                         name=name,
-                        boundary=polys,
-                        boundary_text=json.dumps(polys),
+                        boundary=boundary,
+                        boundary_text=boundary.to_wkt(),
                     )
                 )
         return run_locations
-
-
-def is_point_in_poly(point: tuple[float, float], poly: list[tuple[float, float]]) -> bool:
-    inside = False
-    j = len(poly) - 1
-    x, y = point
-    for i in range(len(poly)):
-        x1, y1 = poly[i]
-        x2, y2 = poly[j]
-        if ((y1 > y) != (y2 > y)) and (x < (x2 - x1) * (y - y1) / (y2 - y1) + x1):
-            inside = not inside
-    return inside
-
-
-def count_trackpoints_inside(run: Run, run_location: RunLocationWithBoundary):
-    # Raycast each trackpoint on each polygon,
-    # counting the trackpoints that are inside one of the polygons.
-    cnt = 0
-    for tp in run.track_points:
-        if any(is_point_in_poly((tp.lat_deg, tp.lon_deg), poly) for poly in run_location.boundary):
-            cnt += 1
-    return cnt
 
 
 def sync_locations(
@@ -129,7 +71,7 @@ def sync_locations(
     progress.start_task(task, total=len(runs))
 
     # Load the bounding boxes previously searched
-    cached_areas = [BoundingBox.from_json(ca.bbox_text) for ca in db.exec(select(CachedArea)).all()]
+    cached_areas = [BoundingBox.from_wkt(ca.bbox_text) for ca in db.exec(select(CachedArea)).all()]
     for run in runs:
         # Is any point in the run outside these areas?
         all_contained = len(cached_areas) > 0
@@ -164,11 +106,13 @@ def sync_locations(
 
             cached_areas.append(search_bbox)
 
-            db.add(CachedArea(bbox_text=search_bbox.to_json()))
+            db.add(CachedArea(bbox_text=search_bbox.to_wkt()))
             db.commit()
 
         run_locations = [
-            RunLocationWithBoundary(**rl.model_dump(), boundary=json.loads(rl.boundary_text))
+            RunLocationWithBoundary(
+                **rl.model_dump(), boundary=MultiPolygon.from_wkt(rl.boundary_text)
+            )
             for rl in db.exec(select(RunLocation)).all()
         ]
 
@@ -176,19 +120,22 @@ def sync_locations(
         run_bbox = BoundingBox.from_points([(tp.lat_deg, tp.lon_deg) for tp in run.track_points])
 
         for rl in run_locations:
-            rl_bbox = BoundingBox.from_run_location(rl)
+            points = [p for poly in rl.boundary.polygons for p in poly]
+            rl_bbox = BoundingBox.from_points(points)
             if rl_bbox.intersects(run_bbox):
                 possible_locations.append(rl)
-
-        print(f"possible locations: {[rl.name for rl in possible_locations]}")
 
         if len(possible_locations) == 1:
             run.location_id = possible_locations[0].osm_id
         elif len(possible_locations) > 1:
-            run.location_id = max(
+            trackpoints = [(tp.lat_deg, tp.lon_deg) for tp in run.track_points]
+            location = max(
                 possible_locations,
-                key=lambda rl: count_trackpoints_inside(run, rl),
-            ).osm_id
+                key=lambda loc: loc.boundary.count_points_inside(trackpoints),
+            )
+            run.location_id = location.osm_id
+        else:
+            print("NO location determined for run", run.start_time)
 
         progress.advance(task)
 

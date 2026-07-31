@@ -11,6 +11,8 @@ from sqlmodel import Enum as SQLEnum
 
 from rungoal.settings import settings
 
+from .geometry import MultiPolygon
+
 
 class UTCDateTime(sa.types.TypeDecorator):
     """
@@ -114,7 +116,10 @@ class RunLocation(RunLocationBase, table=True):
 
 
 class RunLocationWithBoundary(RunLocationBase):
-    boundary: list[list[tuple[float, float]]]
+    class Config:
+        arbitrary_types_allowed = True
+
+    boundary: MultiPolygon
 
 
 class CachedArea(SQLModel, table=True):
@@ -305,12 +310,12 @@ class Error(BaseModel):
 
 
 class SyncRequest(BaseModel):
+    class Config:
+        populate_by_name = True
+
     from_: datetime | None = Field(alias="from", default=None)
     to: datetime | None = None
     include_runtracker: bool
-
-    class Config:
-        populate_by_name = True
 
 
 class SyncParams(SyncRequest):

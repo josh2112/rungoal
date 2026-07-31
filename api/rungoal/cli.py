@@ -18,10 +18,11 @@ from rungoal.models import (
     TrackPoint,
     Weather,
 )
+from rungoal.run_location import OverpassClient
 from rungoal.sync import sync_runs, sync_runtracker, sync_split_stats, sync_tcx, sync_wx
 from rungoal.utils import ProgressProtocol
 
-from .geo import OverpassClient, sync_locations
+from .run_location import sync_locations
 
 app = typer.Typer()
 
@@ -182,7 +183,7 @@ def cmd_sync_locations(
             sql = sql.where(col(Run.location_id).is_(None))
         runs = db.exec(sql).all()
 
-        sync_locations(db, client, progress, list(runs))
+        sync_locations(db, client, progress, runs)
 
 
 @app.command(
@@ -242,8 +243,9 @@ def cmd_plot_alt(run_ids: Annotated[IntRangeArgument, typer.Argument(parser=pars
     "init-db", help="Deletes and recreates the database, optionally recreating revision data."
 )
 def cmd_init_db(regen: bool = False):
-    from alembic import command
     from alembic.config import Config
+
+    from alembic import command
 
     alembic_config = Config("alembic.ini")
 
@@ -262,8 +264,8 @@ def cmd_init_db(regen: bool = False):
     command.upgrade(alembic_config, "head")
 
 
-@app.command("clear-runs")
-def cmd_clear_runs(user_id: int):
+@app.command("reset-user")
+def reset_user(user_id: int):
     with get_db() as db:
         db.exec(delete(Run).where(col(Run.user_id) == user_id))
         user = get_user(db, 1)
