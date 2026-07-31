@@ -1,17 +1,17 @@
 ## TODO
 
-Add an endpoint which returns 'interesting' runs:
- - Longest run
- - Hottest/coldest runs (by apparent temperature)
- - earliest/latest run
- - Most efficient run
- - Wettest run
+- 1/19 run was at reedy creek, but i got back creek
+- 1/13 run was not really at walnut creek park. is there a better candidate?
+- how about the 2 runs at the beach? and other runs with trackpoints we can't match?
+- might have to compare osmnx's cached records against our cached records for these places
 
-- Figure out likely running location (Sherman Branch, Veteran's Park, etc.) computed from GPS track
-    - Geohash 7 chars
-    - Refer to Gemini chat about how to download local park data boundaries and convert to geohash set
-    - Precompute set of geohashed trackpoints for run
-    - Find the park with the most overlap between park geohashes and run trackpoint geohashes
+Add an endpoint which returns 'interesting' runs:
+
+- Longest run
+- Hottest/coldest runs (by apparent temperature)
+- earliest/latest run
+- Most efficient run
+- Wettest run
 
 - Heatmap: Make a histogram grid of run trackpoint geohashes. Probably a library for this.
 

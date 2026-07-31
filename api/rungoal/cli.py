@@ -21,7 +21,7 @@ from rungoal.models import (
 from rungoal.sync import sync_runs, sync_runtracker, sync_split_stats, sync_tcx, sync_wx
 from rungoal.utils import ProgressProtocol
 
-from .geo import sync_locations
+from .geo import OverpassClient, sync_locations
 
 app = typer.Typer()
 
@@ -167,7 +167,7 @@ def cmd_sync_split_stats(
 def cmd_sync_locations(
     user_id: int, from_: datetime, to: datetime | None = None, replace: bool = False
 ):
-    with get_db() as db, CliProgress() as progress:
+    with get_db() as db, CliProgress() as progress, OverpassClient() as client:
         user = get_user(db, user_id)
         # Select runs for this user and timespan for which we don't already have location data
         sql = (
@@ -182,7 +182,7 @@ def cmd_sync_locations(
             sql = sql.where(col(Run.location_id).is_(None))
         runs = db.exec(sql).all()
 
-        sync_locations(db, progress, list(runs))
+        sync_locations(db, client, progress, list(runs))
 
 
 @app.command(

@@ -9,11 +9,11 @@
             "args": ["dev"]
         },
         {
-            "name": "rungoal.cli example",
+            "name": "sync-locations",
             "type": "debugpy",
             "request": "launch",
             "module": "rungoal.cli",
-            "args": ["sync-runs", "1", "--from", "2026-07-19", "--no-tcx", "--no-wx"]
+            "args": ["sync-locations", "1", "2025-01-01", "--replace"]
         }
     ]
 }

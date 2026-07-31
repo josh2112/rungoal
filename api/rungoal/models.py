@@ -207,7 +207,7 @@ class Run(RunBase, table=True):
     )
     weather: Weather | None = Relationship(back_populates="run", cascade_delete=True)
 
-    location_id: int | None = Field(default=None, foreign_key="runlocation.osm_id")
+    location_id: str | None = Field(default=None, foreign_key="runlocation.osm_id")
     location: RunLocation | None = Relationship(back_populates="runs")
 
     __table_args__ = (sa.UniqueConstraint(*run_unique_constriant_columns, name="run_unique"),)
