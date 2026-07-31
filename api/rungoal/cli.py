@@ -252,6 +252,8 @@ def cmd_init_db(
 ):
     from alembic.config import Config
 
+    from alembic import command
+
     alembic_config = Config("alembic.ini")
 
     # Delete the DB
