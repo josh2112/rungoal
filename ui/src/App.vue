@@ -13,7 +13,7 @@ const onboardingGoalDialogRef = ref<InstanceType<typeof OnboardingDialog> | null
 watch(
     () => session.syncState,
     (_) => {
-        if (!session.user!.is_onboarded && !session.syncState?.is_syncing) {
+        if (session.user?.is_onboarded === false && !session.syncState?.is_syncing) {
             onboardingGoalDialogRef.value!.open();
         }
     },

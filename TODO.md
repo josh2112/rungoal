@@ -1,3 +1,7 @@
+- doens't log out propertly (sdcreen doesn't refresh)
+- doesn't get runs after logging back in
+
+
 - Add an endpoint which returns 'interesting' runs:
     - Longest run
     - Hottest/coldest runs (by apparent temperature)

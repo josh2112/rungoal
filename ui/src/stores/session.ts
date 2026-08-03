@@ -41,11 +41,14 @@ export const useSession = defineStore("session", () => {
     }
 
     function logOut() {
+        console.log("BOUNDS TO CLEAR EVERYTRHING");
         api.get("/auth/logout");
         api.accessToken = null;
         syncState.value = undefined;
+        goals.value = [];
         runs.value = [];
         user.value = undefined;
+        console.log("CLEARED EVERYTHIUNG");
     }
 
     async function getMe() {

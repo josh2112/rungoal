@@ -34,7 +34,10 @@ onMounted(() => {
             <GoalsList v-if="session.goals.length > 0" />
             <div v-else class="align-items-center text-secondary">No goals</div>
 
-            <div class="d-flex align-items-center justify-content-between w-100 gap-3 mt-3 mb-2" style="height: 35px">
+            <div
+                class="d-flex align-items-center justify-content-between w-100 gap-3 mt-3 mb-2"
+                style="height: 35px"
+            >
                 <h5 class="mb-0 text-nowrap">Runs</h5>
                 <SyncView v-if="session.syncState" :sync-state="session.syncState" />
             </div>
@@ -45,6 +48,6 @@ onMounted(() => {
             <LoginButton />
         </div>
 
-        <FetchMoreTrigger />
+        <FetchMoreTrigger v-if="session.user" />
     </div>
 </template>

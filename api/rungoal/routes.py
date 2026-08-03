@@ -64,7 +64,7 @@ def google_auth(
     user = crud.get_user_by_email(db, google_user.email)
     if user:
         # Update the existing user with the latest data (keeping the existing ID)
-        db.merge(User(id=user.id, **google_user.model_dump()))
+        db.merge(User(id=user.id, is_onboarded=user.is_onboarded, **google_user.model_dump()))
         db.commit()
     else:
         user = crud.create_user(db, google_user)

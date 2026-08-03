@@ -43,16 +43,13 @@ class AccessToken(BaseModel):
 # ========= DB ========
 
 
-class UserResponse(SQLModel):
+class UserBase(SQLModel):
     name: str
     email: EmailStr = Field(index=True, unique=True, sa_type=AutoString)
     avatar_uri: str
-    is_onboarded: bool = Field(
-        default=False, sa_column=sa.Column(sa.Boolean(), server_default=sa.false())
-    )
 
 
-class UserWithGoogleCreds(UserResponse):
+class UserWithGoogleCreds(UserBase):
     google_api_access_token: str
     google_api_refresh_token: str = Field(
         sa_column=sa.Column(
@@ -61,10 +58,16 @@ class UserWithGoogleCreds(UserResponse):
     )
 
 
+class UserResponse(UserWithGoogleCreds):
+    is_onboarded: bool = Field(
+        default=False, sa_column=sa.Column(sa.Boolean(), server_default=sa.false())
+    )
+
+
 # ===== User =====
 
 
-class User(UserWithGoogleCreds, table=True):
+class User(UserResponse, table=True):
     id: int | None = Field(default=None, primary_key=True)
     runs: list["Run"] = Relationship(back_populates="user", cascade_delete=True)
     goals: list["Goal"] = Relationship(back_populates="user", cascade_delete=True)
