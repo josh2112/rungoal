@@ -26,6 +26,7 @@ def calc_split_stats(db: Session, run_id: int, split_secs: int) -> list[RunSplit
 
         gad_split, dist_split = 0, 0
         hr_split = 0
+        num_heart_rates = 0
         for i in range(start + 1, end + 1):
             # Distance
             d = trackpoints[i].distance_meters - trackpoints[i - 1].distance_meters
@@ -39,13 +40,15 @@ def calc_split_stats(db: Session, run_id: int, split_secs: int) -> list[RunSplit
             gad = d * gf
             dist_split += d
             gad_split += gad
-            hr_split += trackpoints[i].heart_rate_bpm or 0
+            if hr := trackpoints[i].heart_rate_bpm:
+                hr_split += hr
+                num_heart_rates += 1
 
         time_split = trackpoints[end].elapsed_secs - trackpoints[start + 1].elapsed_secs
 
         ngs_split = gad_split / time_split
 
-        hr_split /= end - start + 1
+        hr_split /= num_heart_rates
         eff_split = 100 * ngs_split / hr_split if hr_split else 0
 
         split_stats.append(
