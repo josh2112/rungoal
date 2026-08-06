@@ -221,6 +221,21 @@ class Run(RunBase, table=True):
     __table_args__ = (sa.UniqueConstraint(*run_unique_constriant_columns, name="run_unique"),)
 
 
+class NotableType(StrEnum):
+    HOTTEST = "HOTTEST"
+    COLDEST = "COLDEST"
+    WETTEST = "WETTEST"
+    EARLIEST = "EARLIEST"
+    LATEST = "LATEST"
+    LONGEST = "LONGEST"
+    FASTEST = "FASTEST"
+    MOST_EFFICIENT = "MOST_EFFICIENT"
+
+
+class NotableRunsResponse(BaseModel):
+    runs: dict[NotableType, RunResponse | None]
+
+
 class RunFetchContext(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -249,7 +264,7 @@ class RunSplitStatsResponse(SQLModel):
     dist_meters: float
     gad_meters: float
     hr_avg: float | None
-    efficiency: float | None
+    efficiency: float | None  # meters per heartbeat
 
 
 class RunSplitStats(RunSplitStatsResponse, table=True):

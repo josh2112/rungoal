@@ -1,16 +1,21 @@
 <script setup lang="ts">
 import { useDark } from "@vueuse/core";
 import tinygradient from "tinygradient";
-import { computed } from "vue";
-import { type Run } from "../models/run";
+import { computed, onMounted } from "vue";
 import { useSession } from "../stores/session";
 import { currentLocale, distanceAbbr, durationFormatter, formatDec } from "../utils";
 
-const props = defineProps<{
-    run: Run;
-}>();
+import { useRoute } from "vue-router";
+import { navbarState } from "../models/misc";
 
+const route = useRoute();
 const session = useSession();
+
+const run = computed(() => session.runs[+route.params.index - 1]);
+
+onMounted(() => {
+    navbarState.title = runName.value;
+});
 
 const distAbbr = distanceAbbr(session.settings.distance_unit);
 
@@ -25,7 +30,7 @@ const isDark = useDark();
 // Split efficiencies normalized to 0-1
 const normalizedSplitEfficiency = computed(() =>
     session.statRanges.efficiency?.range
-        ? props.run.split_stats
+        ? run.value.split_stats
               .map((ss) => ss.efficiency)
               .filter((eff): eff is number => eff !== undefined)
               .map((eff) => (eff - session.statRanges.efficiency!.min) / session.statRanges.efficiency!.range)
@@ -33,15 +38,15 @@ const normalizedSplitEfficiency = computed(() =>
 );
 
 const weatherIcon = computed(() => {
-    if (!props.run.weather) return undefined;
+    if (!run.value.weather) return undefined;
 
-    const r = props.run.weather.rain_mm;
+    const r = run.value.weather.rain_mm;
     if (r !== undefined) {
         if (r > 2.5) return "bi-cloud-rain-fill";
         if (r > 0) return "bi-cloud-drizzle-fill";
     }
 
-    const c = props.run.weather.cloud_cover_pct;
+    const c = run.value.weather.cloud_cover_pct;
     if (c !== undefined) {
         if (c > 75) return "bi-clouds-fill";
         if (c > 50) return "bi-cloud-fill";
@@ -51,9 +56,9 @@ const weatherIcon = computed(() => {
 });
 
 const weatherIconColor = computed(() => {
-    if (!props.run.weather) return undefined;
-    const r = props.run.weather?.rain_mm ?? 0;
-    const c = props.run.weather?.cloud_cover_pct ?? -1;
+    if (!run.value.weather) return undefined;
+    const r = run.value.weather?.rain_mm ?? 0;
+    const c = run.value.weather?.cloud_cover_pct ?? -1;
 
     if (r > 0) return "dodgerblue";
     if (c > 25) return "gray";
@@ -61,14 +66,14 @@ const weatherIconColor = computed(() => {
 });
 
 const deviceTypeIcon = computed(() => {
-    if (props.run.device_type == "WATCH") return "bi-watch";
-    else if (props.run.device_type == "PHONE") return "bi-phone";
+    if (run.value.device_type == "WATCH") return "bi-watch";
+    else if (run.value.device_type == "PHONE") return "bi-phone";
 });
 
 const runName = computed(() => {
-    if (props.run.start_time.hour < 11) return "Morning Run";
-    if (props.run.start_time.hour < 14) return "Midday Run";
-    if (props.run.start_time.hour < 17) return "Afternoon Run";
+    if (run.value.start_time.hour < 11) return "Morning Run";
+    if (run.value.start_time.hour < 14) return "Midday Run";
+    if (run.value.start_time.hour < 17) return "Afternoon Run";
     return "Evening Run";
 });
 </script>

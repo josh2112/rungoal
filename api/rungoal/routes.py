@@ -1,7 +1,7 @@
 import asyncio
 from collections.abc import AsyncIterable, Callable
 from datetime import UTC, datetime
-from typing import Annotated, Any, cast
+from typing import Annotated, Any, Sequence, cast
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Cookie, Query, Request, Response, status
@@ -16,6 +16,7 @@ from rungoal.models import (
     GoalResponse,
     GoalUpdate,
     GoogleApiAuthCode,
+    NotableRunsResponse,
     Run,
     RunResponse,
     StatsRanges,
@@ -128,7 +129,7 @@ async def start_sync(user: DepUser, params: SyncRequest):
 
 @api.get("/goals")
 def get_goals(db: DepDb, user: DepUser) -> list[GoalResponse]:
-    return list(crud.get_goals(db, cast(int, user.id), ZoneInfo(user.timezone)))
+    return crud.get_goals(db, cast(int, user.id), ZoneInfo(user.timezone))
 
 
 @api.post("/goals")
@@ -154,11 +155,16 @@ def get_stats(db: DepDb, user: DepUser) -> StatsRanges:
     return crud.get_stats(db, cast(int, user.id))
 
 
+@api.get("/runs/notable")
+def get_notable_runs(db: DepDb, user: DepUser) -> NotableRunsResponse:
+    return crud.get_notable_runs(db, cast(int, user.id))
+
+
 @api.get("/runs", response_model=list[RunResponse])
 def get_runs(
     db: DepDb,
     user: DepUser,
     from_: Annotated[datetime, Query(alias="from")],
     to: datetime,
-) -> list[Run]:
-    return list(crud.get_runs(db, cast(int, user.id), from_, to))
+) -> Sequence[Run]:
+    return crud.get_runs(db, cast(int, user.id), from_, to)

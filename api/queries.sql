@@ -6,7 +6,7 @@ select
 from
     goal
     left outer join run ON date(run.start_time) >= goal.start_date
-        AND date(run.start_time) <= goal.end_date
+    AND date(run.start_time) <= goal.end_date
 WHERE
     goal.user_id = 1
 group by
@@ -45,7 +45,6 @@ where
     and trackpoint.elapsed_secs >= 1666
     and trackpoint.elapsed_secs <= 1900;
 
-
 select
     min(rss.efficiency),
     max(rss.efficiency)
@@ -55,15 +54,27 @@ from
 where
     r.user_id = 1;
 
-SELECT r.id 
-FROM run AS r 
-WHERE NOT EXISTS (
-    SELECT 1 
-    FROM weather AS w 
-    WHERE w.run_id = r.id
-);
+SELECT
+    r.id
+FROM
+    run AS r
+WHERE
+    NOT EXISTS (
+        SELECT
+            1
+        FROM
+            weather AS w
+        WHERE
+            w.run_id = r.id
+    );
 
 -- Clear run location data
-update run set location_id = NULL;
+update run
+set
+    location_id = NULL;
+
 delete from runlocation;
+
 delete from cachedarea;
+
+select start_time, distance_millimeters, active_duration, distance_millimeters / active_duration / 447.04 from run

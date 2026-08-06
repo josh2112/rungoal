@@ -1,0 +1,7 @@
+.hover-highlight {
+    transition: background-color 0.2s ease-in-out;
+}
+
+.hover-highlight:hover {
+    background-color: rgba(var(--bs-secondary-bg-rgb), 0.6) !important;
+}

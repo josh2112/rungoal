@@ -1,6 +1,6 @@
 import { Temporal } from "temporal-polyfill";
 import { reactive } from "vue";
-import { parseUtcDateTime, type DistanceUnit } from "../utils";
+import { parseUtcDateTime, type DistanceUnit, type TemperatureUnit } from "../utils";
 
 export interface ErrorResponse {
     title: string;
@@ -17,6 +17,7 @@ export interface User {
 
 export interface Settings {
     distance_unit: DistanceUnit;
+    temperature_unit: TemperatureUnit;
 }
 
 export interface SyncParams {

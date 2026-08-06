@@ -25,32 +25,60 @@ export function formatDec(num: number, maxDecimals: number): string {
 const DistanceUnitData = {
     meters: {
         abbreviation: "m",
-        toBase: 1,
+        fromBase: (v: number) => v,
+        toBase: (v: number) => v,
     },
     millimeters: {
         abbreviation: "mm",
-        toBase: 0.001,
+        fromBase: (v: number) => v * 1000,
+        toBase: (v: number) => v * 0.001,
     },
     kilometers: {
         abbreviation: "km",
-        toBase: 1000,
+        fromBase: (v: number) => v * 0.001,
+        toBase: (v: number) => v * 1000,
     },
     miles: {
         abbreviation: "mi",
-        toBase: 1609.344,
+        fromBase: (v: number) => v * 0.000621371192,
+        toBase: (v: number) => v * 1609.344,
     },
     feet: {
         abbreviation: "ft",
-        toBase: 0.3048,
+        fromBase: (v: number) => v * 3.280839895,
+        toBase: (v: number) => v * 0.3048,
     },
 } as const;
 
 export type DistanceUnit = keyof typeof DistanceUnitData;
 
 export function distanceConvert(val: number, from: DistanceUnit, to: DistanceUnit) {
-    return (val * DistanceUnitData[from].toBase) / DistanceUnitData[to].toBase;
+    return DistanceUnitData[to].fromBase(DistanceUnitData[from].toBase(val));
 }
 
 export function distanceAbbr(unit: DistanceUnit) {
     return DistanceUnitData[unit].abbreviation;
+}
+
+const TemperatureUnitData = {
+    celsius: {
+        abbreviation: "°C",
+        fromBase: (v: number) => v,
+        toBase: (v: number) => v,
+    },
+    fahrenheit: {
+        abbreviation: "°F",
+        fromBase: (v: number) => v * 1.8 + 32,
+        toBase: (v: number) => (v - 32) / 1.8,
+    },
+};
+
+export type TemperatureUnit = keyof typeof TemperatureUnitData;
+
+export function temperatureConvert(val: number, from: TemperatureUnit, to: TemperatureUnit) {
+    return TemperatureUnitData[to].fromBase(TemperatureUnitData[from].toBase(val));
+}
+
+export function temperatureAbbr(unit: TemperatureUnit) {
+    return TemperatureUnitData[unit].abbreviation;
 }

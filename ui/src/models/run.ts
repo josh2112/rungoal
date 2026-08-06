@@ -57,6 +57,24 @@ export const toRun = (dto: RunDTO, distUnit: DistanceUnit): Run => ({
     }),
 });
 
+type NotableType = "HOTTEST" | "COLDEST" | "WETTEST" | "EARLIEST" | "LATEST" | "LONGEST" | "FASTEST" | "MOST_EFFICIENT";
+
+interface NotableRunsDTO {
+    runs: Record<NotableType, RunDTO>;
+}
+
+export interface NotableRuns {
+    runs: Record<NotableType, Run>;
+}
+
+export const toNotableRuns = (dto: NotableRunsDTO, distUnit: DistanceUnit): NotableRuns =>
+    ({
+        runs: Object.fromEntries(Object.entries(dto.runs).map(([type, run]) => [type, toRun(run, distUnit)])) as Record<
+            NotableType,
+            Run
+        >,
+    }) as NotableRuns;
+
 interface Range {
     min: number;
     max: number;

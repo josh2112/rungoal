@@ -35,9 +35,8 @@ def calc_split_stats(db: Session, run_id: int, split_secs: int) -> list[RunSplit
             # GAP Factor (using Minetti polynomial)
             gf = (((((155.4 * g - 30.4) * g - 43.3) * g + 46.3) * g + 19.5) * g + 3.6) / 3.6
             # Grade-adjusted distance
-            gad = d * gf
             dist_split += d
-            gad_split += gad
+            gad_split += d * gf
 
         # We can't count on having heart rates for all trackpoints. I've seen at least one run where my Pixel Watch 3
         # only recorded heart rates for 1 out of every 2 or 3 trackpoints.
@@ -48,11 +47,10 @@ def calc_split_stats(db: Session, run_id: int, split_secs: int) -> list[RunSplit
         ]
         hr_split = sum(hrs) / len(hrs) if hrs else None
 
-        ngs_split = gad_split / (
-            trackpoints[end].elapsed_secs - trackpoints[start + 1].elapsed_secs
-        )
+        ngs_split = gad_split / (trackpoints[end].elapsed_secs - trackpoints[start].elapsed_secs)
 
-        eff_split = 100 * ngs_split / hr_split if hr_split else 0
+        # sec/min * m/sec / beats/min ==> m/beat ==> meters per heartbeat
+        eff_split = 60 * ngs_split / hr_split if hr_split else 0
 
         split_stats.append(
             RunSplitStats(

@@ -3,6 +3,8 @@ from datetime import datetime
 from typing import Any, cast
 from zoneinfo import ZoneInfo
 
+from sqlalchemy import String as sa_string
+from sqlalchemy import cast as sa_cast
 from sqlalchemy import func, text
 from sqlmodel import Session, col, select
 
@@ -12,12 +14,16 @@ from rungoal.models import (
     GoalCreate,
     GoalResponse,
     GoalUpdate,
+    NotableRunsResponse,
+    NotableType,
     Range,
     Run,
+    RunResponse,
     RunSplitStats,
     StatsRanges,
     User,
     UserWithGoogleCreds,
+    Weather,
 )
 
 
@@ -72,11 +78,10 @@ def delete_goal(db: Session, user_id: int, goal_id: int):
 
 
 def get_goals(db: Session, user_id: int, timezone: ZoneInfo) -> list[GoalResponse]:
-    # SQLite3's date fuctions take an offset as "+/- X.Y hours"
-    utc_offset = datetime.now(timezone).utcoffset()
-    assert utc_offset
+    utc_offset_delta = datetime.now(timezone).utcoffset()
+    assert utc_offset_delta
 
-    utc_offset = f"{utc_offset.total_seconds() / 3600} hours"
+    utc_offset = f"{utc_offset_delta.total_seconds()} seconds"
 
     # Offset each run's start_time (stored in UTC) by the time zone offset (which may
     # wrap the date), then we can get away with just comparing dates.
@@ -130,3 +135,59 @@ def get_runs(db: Session, user_id: int, from_: datetime, to: datetime) -> Sequen
         .where(Run.start_time <= to)
         .order_by(col(Run.start_time).desc())
     ).all()
+
+
+def get_notable_runs(db: Session, user_id: int) -> NotableRunsResponse:
+    def _run_response(sql):
+        return RunResponse.model_validate(db.exec(sql.limit(1)).one_or_none())
+
+    utc_offset = sa_cast(Run.utc_offset_seconds, sa_string) + " seconds"
+
+    return NotableRunsResponse(
+        runs={
+            NotableType.HOTTEST: _run_response(
+                select(Run)
+                .join(Weather)
+                .where(Run.user_id == user_id)
+                .order_by(col(Weather.apparent_temp_c).desc())
+            ),
+            NotableType.COLDEST: _run_response(
+                select(Run)
+                .join(Weather)
+                .where(Run.user_id == user_id)
+                .order_by(col(Weather.apparent_temp_c).asc())
+            ),
+            NotableType.WETTEST: _run_response(
+                select(Run)
+                .join(Weather)
+                .where(Run.user_id == user_id)
+                .order_by(col(Weather.rain_mm).desc())
+            ),
+            NotableType.EARLIEST: _run_response(
+                select(Run)
+                .where(Run.user_id == user_id)
+                .order_by(func.time(Run.start_time, utc_offset).asc())
+            ),
+            NotableType.LATEST: _run_response(
+                select(Run)
+                .where(Run.user_id == user_id)
+                .order_by(func.time(Run.start_time, utc_offset).desc())
+            ),
+            NotableType.LONGEST: _run_response(
+                select(Run)
+                .where(Run.user_id == user_id)
+                .order_by(col(Run.distance_millimeters).desc())
+            ),
+            NotableType.FASTEST: _run_response(
+                select(Run)
+                .where(Run.user_id == user_id)
+                .order_by((col(Run.distance_millimeters) / col(Run.active_duration)).desc())
+            ),
+            NotableType.MOST_EFFICIENT: _run_response(
+                select(Run)
+                .where(Run.user_id == user_id)
+                .order_by(col(RunSplitStats.efficiency).desc())
+                .join(RunSplitStats)
+            ),
+        }
+    )
