@@ -4,7 +4,7 @@ import NotableRunCard from "../components/NotableRunCard.vue";
 import { navbarState } from "../models/misc";
 import type { Run, Weather } from "../models/run.ts";
 import { useSession } from "../stores/session";
-import { distanceAbbr, durationFormatter, formatDec, temperatureAbbr, temperatureConvert } from "../utils.ts";
+import { distanceAbbr, durationFormatter, formatDec, temperatureAbbr, temperatureConvert } from "../utils";
 
 const session = useSession();
 
