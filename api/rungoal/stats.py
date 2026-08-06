@@ -25,8 +25,6 @@ def calc_split_stats(db: Session, run_id: int, split_secs: int) -> list[RunSplit
             continue
 
         gad_split, dist_split = 0, 0
-        hr_split = 0
-        num_heart_rates = 0
         for i in range(start + 1, end + 1):
             # Distance
             d = trackpoints[i].distance_meters - trackpoints[i - 1].distance_meters
@@ -40,15 +38,20 @@ def calc_split_stats(db: Session, run_id: int, split_secs: int) -> list[RunSplit
             gad = d * gf
             dist_split += d
             gad_split += gad
-            if hr := trackpoints[i].heart_rate_bpm:
-                hr_split += hr
-                num_heart_rates += 1
 
-        time_split = trackpoints[end].elapsed_secs - trackpoints[start + 1].elapsed_secs
+        # We can't count on having heart rates for all trackpoints. I've seen at least one run where my Pixel Watch 3
+        # only recorded heart rates for 1 out of every 2 or 3 trackpoints.
+        hrs = [
+            tp.heart_rate_bpm
+            for tp in trackpoints[start + 1 : end + 1]
+            if tp.heart_rate_bpm is not None
+        ]
+        hr_split = sum(hrs) / len(hrs) if hrs else None
 
-        ngs_split = gad_split / time_split
+        ngs_split = gad_split / (
+            trackpoints[end].elapsed_secs - trackpoints[start + 1].elapsed_secs
+        )
 
-        hr_split /= num_heart_rates
         eff_split = 100 * ngs_split / hr_split if hr_split else 0
 
         split_stats.append(
