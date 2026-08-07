@@ -64,47 +64,43 @@ const deleteDialogParmas = {
     <ConfirmationDialog ref="removeGoalDialogRef" :params="deleteDialogParmas" />
 
     <div class="container mt-3">
-        <div class="col-lg-6">
-            <div class="d-flex justify-content-between">
-                <h5>
-                    {{ stats.goal.name }}
-                </h5>
-                <h5
-                    class="text-end"
-                    :class="
-                        stats.current_pace_diff >= 0
-                            ? 'text-success-emphasis'
-                            : 'text-danger-emphasis'
-                    "
-                >
-                    {{ stats.current_pace_diff >= 0 ? "+" : "-"
-                    }}{{ formatDec(Math.abs(stats.current_pace_diff), 2) }}
-                    {{ stats.dist_abbr }}
-                </h5>
+        <div class="d-flex justify-content-between">
+            <h5>
+                {{ stats.goal.name }}
+            </h5>
+            <h5
+                class="text-end"
+                :class="
+                    stats.current_pace_diff >= 0 ? 'text-success-emphasis' : 'text-danger-emphasis'
+                "
+            >
+                {{ stats.current_pace_diff >= 0 ? "+" : "-"
+                }}{{ formatDec(Math.abs(stats.current_pace_diff), 2) }}
+                {{ stats.dist_abbr }}
+            </h5>
+        </div>
+        <div class="card-text">
+            <div>
+                {{ formatDec(stats.total_dist, 2) }} {{ stats.dist_abbr }} in
+                {{ stats.total_days }} days
             </div>
-            <div class="card-text">
-                <div>
-                    {{ formatDec(stats.total_dist, 2) }} {{ stats.dist_abbr }} in
-                    {{ stats.total_days }} days
-                </div>
-                <div
-                    class="progress my-2"
-                    role="progressbar"
-                    aria-label="Goal progress"
-                    :aria-valuenow="stats.goal.current_distance_meters"
-                    aria-valuemin="0"
-                    :aria-valuemax="stats.goal.distance_meters"
-                >
-                    <div class="progress-bar" :style="{ width: `${progress}%` }"></div>
-                </div>
-                <div>
-                    {{ formatDec(stats.current_dist, 2) }} {{ stats.dist_abbr }} /
-                    {{ formatDec(stats.percent, 0) }}% complete<br />
-                </div>
-                <div>
-                    {{ stats.remaining_days }} days to go ({{ formatDec(stats.remaining_pace, 2) }}
-                    {{ stats.dist_abbr }} per day)
-                </div>
+            <div
+                class="progress my-2"
+                role="progressbar"
+                aria-label="Goal progress"
+                :aria-valuenow="stats.goal.current_distance_meters"
+                aria-valuemin="0"
+                :aria-valuemax="stats.goal.distance_meters"
+            >
+                <div class="progress-bar" :style="{ width: `${progress}%` }"></div>
+            </div>
+            <div>
+                {{ formatDec(stats.current_dist, 2) }} {{ stats.dist_abbr }} /
+                {{ formatDec(stats.percent, 0) }}% complete<br />
+            </div>
+            <div>
+                {{ stats.remaining_days }} days to go ({{ formatDec(stats.remaining_pace, 2) }}
+                {{ stats.dist_abbr }} per day)
             </div>
         </div>
     </div>

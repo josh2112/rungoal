@@ -1,4 +1,3 @@
-- RunPage duplicates all the logic in RunCard. Extract this out into a "RunStats" structure like GoalCard/GoalPage does.
 - Make average run efficiency (meters per heartbeat) a first-class metric on the run card
 - Heatmap: Make a histogram grid of run trackpoint geohashes. Probably a library for this.
 - Calendar view: Simple calendar month view with run days circled. Tapping a day takes you to the runs for that day.
