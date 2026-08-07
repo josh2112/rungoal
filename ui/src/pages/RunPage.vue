@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { useDark } from "@vueuse/core";
 import tinygradient from "tinygradient";
 import { computed, onMounted } from "vue";
 import { useSession } from "../stores/session";
@@ -30,8 +29,6 @@ const redToGreen = tinygradient([
     { color: "#ff8800", pos: 0.5 },
     { color: "#00ff00", pos: 1 },
 ]);
-
-const isDark = useDark();
 </script>
 
 <template>
