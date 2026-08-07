@@ -9,8 +9,8 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from jose import JWTError, jwt
 
-from rungoal.models import GoogleApiAuthCode, UserWithGoogleCreds
-from rungoal.settings import Settings
+from .models import GoogleApiAuthCode, UserWithGoogleCreds
+from .settings import Settings
 
 _settings = Settings.model_validate({})
 

@@ -13,9 +13,9 @@ from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session, col, delete, select
 
-from rungoal.google import GoogleHealthClient
-from rungoal.import_runtracker import RuntrackerGoal
-from rungoal.models import (
+from .google import GoogleHealthClient
+from .import_runtracker import RuntrackerGoal
+from .models import (
     Goal,
     RecordingMethod,
     RecordingPlatform,
@@ -27,11 +27,10 @@ from rungoal.models import (
     Weather,
     run_unique_constriant_columns,
 )
-from rungoal.open_meteo import OpenMeteoClient
-from rungoal.stats import calc_split_stats
-from rungoal.utils import ProgressProtocol, TimeRange
-
+from .open_meteo import OpenMeteoClient
 from .run_location import OverpassClient, sync_locations
+from .stats import calc_split_stats
+from .utils import ProgressProtocol, TimeRange
 
 # Only grab at most _RUN_FETCH_DAYS days of data at a time to avoid this Google Health API v4 bug:
 # https://issuetracker.google.com/issues/510170708

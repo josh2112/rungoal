@@ -1,9 +1,17 @@
 import { Temporal } from "temporal-polyfill";
 
-export const { locale: currentLocale, timeZone: currentTimeZone } = new Intl.DateTimeFormat().resolvedOptions();
+export const { locale: currentLocale } = new Intl.DateTimeFormat().resolvedOptions();
 
-export const parseUtcDateTime = (str: string): Temporal.ZonedDateTime =>
-    Temporal.Instant.from(str).toZonedDateTimeISO("UTC").withTimeZone(currentTimeZone);
+export const parseUtcDateTime = (
+    str: string,
+    utcOffsetSeconds: number = 0,
+): Temporal.ZonedDateTime => {
+    const sign = utcOffsetSeconds >= 0 ? "+" : "-";
+    const sec = Math.abs(utcOffsetSeconds);
+    const hh = String(Math.floor(sec / 3600)).padStart(2, "0");
+    const mm = String(Math.floor((sec % 3600) / 60)).padStart(2, "0");
+    return Temporal.Instant.from(str).toZonedDateTimeISO("UTC").withTimeZone(`${sign}${hh}:${mm}`);
+};
 
 export const durationFormatter = (duration: Temporal.Duration) => {
     const paddedSeconds = String(duration.seconds).padStart(2, "0");
@@ -81,4 +89,19 @@ export function temperatureConvert(val: number, from: TemperatureUnit, to: Tempe
 
 export function temperatureAbbr(unit: TemperatureUnit) {
     return TemperatureUnitData[unit].abbreviation;
+}
+
+export interface Range {
+    min: number;
+    max: number;
+    range: number;
+}
+
+// Returns an array with the values normalized to the given range
+export function normalizeValues(values: (number | undefined)[], range: Range) {
+    return range
+        ? values
+              .filter((eff): eff is number => eff !== undefined)
+              .map((eff) => (eff - range.min) / range.range)
+        : [];
 }

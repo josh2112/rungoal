@@ -4,10 +4,10 @@ import tomllib
 from fastapi import FastAPI, Request
 from starlette.middleware.cors import CORSMiddleware
 
-from rungoal.cors import allowed_origins
-from rungoal.errors import init_exception_handlers
-from rungoal.routes import api
-from rungoal.settings import settings
+from .cors import allowed_origins
+from .errors import init_exception_handlers
+from .routes import api
+from .settings import settings
 
 # ================ Init ================
 

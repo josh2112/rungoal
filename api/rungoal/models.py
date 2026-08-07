@@ -1,17 +1,24 @@
 from datetime import UTC, date, datetime
 from enum import StrEnum
+from typing import Annotated
 from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa
-from pydantic import BaseModel, ConfigDict, EmailStr, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, EmailStr, model_validator
+from sqids import Sqids
 from sqlalchemy_utils import EncryptedType
 from sqlalchemy_utils.types.encrypted.encrypted_type import AesEngine
 from sqlmodel import AutoString, Field, Relationship, SQLModel
 from sqlmodel import Enum as SQLEnum
 
-from rungoal.settings import settings
-
 from .geometry import MultiPolygon
+from .settings import settings
+
+sqids = Sqids()
+
+
+def hash_id(id):
+    return sqids.encode([id])
 
 
 class UTCDateTime(sa.types.TypeDecorator):
@@ -167,7 +174,7 @@ class RunBase(SQLModel):
 
 
 class RunResponse(RunBase):
-    id: int
+    id: Annotated[str, BeforeValidator(lambda id: sqids.encode([id]))]
     weather: WeatherResponse | None = None
     split_stats: list["RunSplitStatsResponse"]
     device_type: DeviceType | None
@@ -303,7 +310,7 @@ class GoalResponse(GoalCreate):
     class Config:
         from_attributes = True
 
-    id: int
+    id: Annotated[str, BeforeValidator(lambda id: sqids.encode([id]))]
     current_distance_meters: float
 
 

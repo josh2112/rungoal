@@ -10,7 +10,7 @@ import httpx
 from google.oauth2.credentials import Credentials
 from sqlmodel import Session
 
-from rungoal.models import (
+from .models import (
     DeviceType,
     RecordingMethod,
     RecordingPlatform,
@@ -20,7 +20,7 @@ from rungoal.models import (
     TrackPoint,
     User,
 )
-from rungoal.utils import TimeRange
+from .utils import TimeRange
 
 
 @cache

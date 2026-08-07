@@ -9,20 +9,18 @@ from rich.progress import Progress as RichProgress
 from sqlalchemy import delete
 from sqlmodel import col, select
 
-from rungoal.crud import get_user
-from rungoal.database import get_db
-from rungoal.google import GoogleHealthClient
-from rungoal.models import (
+from .crud import get_user
+from .database import get_db
+from .google import GoogleHealthClient
+from .models import (
     Run,
     RunSplitStats,
     TrackPoint,
     Weather,
 )
-from rungoal.run_location import OverpassClient
-from rungoal.sync import sync_runs, sync_runtracker, sync_split_stats, sync_tcx, sync_wx
-from rungoal.utils import ProgressProtocol
-
-from .run_location import sync_locations
+from .run_location import OverpassClient, sync_locations
+from .sync import sync_runs, sync_runtracker, sync_split_stats, sync_tcx, sync_wx
+from .utils import ProgressProtocol
 
 app = typer.Typer()
 

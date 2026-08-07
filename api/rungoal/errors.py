@@ -7,8 +7,8 @@ from fastapi.responses import JSONResponse
 from jose import ExpiredSignatureError, JWTError
 from starlette.exceptions import HTTPException
 
-from rungoal.cors import allowed_origins
-from rungoal.models import Error
+from .cors import allowed_origins
+from .models import Error
 
 
 class RecordNotFoundError(LookupError):

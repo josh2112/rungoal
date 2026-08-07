@@ -17,6 +17,7 @@ dependencies = [
     "httpx-retries>=0.6.0",
     "pydantic-settings>=2.14.2",
     "python-jose[cryptography]>=3.5.0",
+    "sqids>=0.5.2",
     "sqlalchemy-utils>=0.42.1",
     "sqlmodel>=0.0.39",
     "typer>=0.27.0",

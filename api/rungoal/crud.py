@@ -8,17 +8,15 @@ from sqlalchemy import cast as sa_cast
 from sqlalchemy import func, text
 from sqlmodel import Session, col, select
 
-from rungoal.errors import RecordNotFoundError
-from rungoal.models import (
+from .errors import RecordNotFoundError
+from .models import (
     Goal,
     GoalCreate,
     GoalResponse,
     GoalUpdate,
-    NotableRunsResponse,
     NotableType,
     Range,
     Run,
-    RunResponse,
     RunSplitStats,
     StatsRanges,
     User,
@@ -137,57 +135,53 @@ def get_runs(db: Session, user_id: int, from_: datetime, to: datetime) -> Sequen
     ).all()
 
 
-def get_notable_runs(db: Session, user_id: int) -> NotableRunsResponse:
+def get_notable_runs(db: Session, user_id: int) -> dict[NotableType, Run]:
     def _run_response(sql):
-        return RunResponse.model_validate(db.exec(sql.limit(1)).one_or_none())
+        return db.exec(sql.limit(1)).one_or_none()
 
     utc_offset = sa_cast(Run.utc_offset_seconds, sa_string) + " seconds"
 
-    return NotableRunsResponse(
-        runs={
-            NotableType.HOTTEST: _run_response(
-                select(Run)
-                .join(Weather)
-                .where(Run.user_id == user_id)
-                .order_by(col(Weather.apparent_temp_c).desc())
-            ),
-            NotableType.COLDEST: _run_response(
-                select(Run)
-                .join(Weather)
-                .where(Run.user_id == user_id)
-                .order_by(col(Weather.apparent_temp_c).asc())
-            ),
-            NotableType.WETTEST: _run_response(
-                select(Run)
-                .join(Weather)
-                .where(Run.user_id == user_id)
-                .order_by(col(Weather.rain_mm).desc())
-            ),
-            NotableType.EARLIEST: _run_response(
-                select(Run)
-                .where(Run.user_id == user_id)
-                .order_by(func.time(Run.start_time, utc_offset).asc())
-            ),
-            NotableType.LATEST: _run_response(
-                select(Run)
-                .where(Run.user_id == user_id)
-                .order_by(func.time(Run.start_time, utc_offset).desc())
-            ),
-            NotableType.LONGEST: _run_response(
-                select(Run)
-                .where(Run.user_id == user_id)
-                .order_by(col(Run.distance_millimeters).desc())
-            ),
-            NotableType.FASTEST: _run_response(
-                select(Run)
-                .where(Run.user_id == user_id)
-                .order_by((col(Run.distance_millimeters) / col(Run.active_duration)).desc())
-            ),
-            NotableType.MOST_EFFICIENT: _run_response(
-                select(Run)
-                .where(Run.user_id == user_id)
-                .order_by(col(RunSplitStats.efficiency).desc())
-                .join(RunSplitStats)
-            ),
-        }
-    )
+    return {
+        NotableType.HOTTEST: _run_response(
+            select(Run)
+            .join(Weather)
+            .where(Run.user_id == user_id)
+            .order_by(col(Weather.apparent_temp_c).desc())
+        ),
+        NotableType.COLDEST: _run_response(
+            select(Run)
+            .join(Weather)
+            .where(Run.user_id == user_id)
+            .order_by(col(Weather.apparent_temp_c).asc())
+        ),
+        NotableType.WETTEST: _run_response(
+            select(Run)
+            .join(Weather)
+            .where(Run.user_id == user_id)
+            .order_by(col(Weather.rain_mm).desc())
+        ),
+        NotableType.EARLIEST: _run_response(
+            select(Run)
+            .where(Run.user_id == user_id)
+            .order_by(func.time(Run.start_time, utc_offset).asc())
+        ),
+        NotableType.LATEST: _run_response(
+            select(Run)
+            .where(Run.user_id == user_id)
+            .order_by(func.time(Run.start_time, utc_offset).desc())
+        ),
+        NotableType.LONGEST: _run_response(
+            select(Run).where(Run.user_id == user_id).order_by(col(Run.distance_millimeters).desc())
+        ),
+        NotableType.FASTEST: _run_response(
+            select(Run)
+            .where(Run.user_id == user_id)
+            .order_by((col(Run.distance_millimeters) / col(Run.active_duration)).desc())
+        ),
+        NotableType.MOST_EFFICIENT: _run_response(
+            select(Run)
+            .where(Run.user_id == user_id)
+            .order_by(col(RunSplitStats.efficiency).desc())
+            .join(RunSplitStats)
+        ),
+    }

@@ -1,6 +1,6 @@
 from sqlmodel import Session, col, select
 
-from rungoal.models import RunSplitStats, TrackPoint
+from .models import RunSplitStats, TrackPoint
 
 
 def calc_split_stats(db: Session, run_id: int, split_secs: int) -> list[RunSplitStats]:

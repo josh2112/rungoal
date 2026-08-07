@@ -7,9 +7,10 @@ from sqlalchemy import Engine
 from sqlmodel import Session
 
 from rungoal import auth, crud
-from rungoal.database import get_engine
-from rungoal.models import RequestUser
-from rungoal.settings import Settings, settings
+
+from .database import get_engine
+from .models import RequestUser
+from .settings import Settings, settings
 
 
 @cache

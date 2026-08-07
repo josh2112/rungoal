@@ -5,10 +5,9 @@ import httpx
 from httpx_retries import RetryTransport
 from sqlmodel import Session, select
 
-from rungoal.utils import ProgressProtocol
-
 from .geometry import BoundingBox, MultiPolygon
 from .models import CachedArea, Run, RunLocation, RunLocationWithBoundary
+from .utils import ProgressProtocol
 
 GRID_SIZE = 0.05
 

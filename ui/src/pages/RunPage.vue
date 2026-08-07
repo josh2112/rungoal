@@ -3,21 +3,27 @@ import { useDark } from "@vueuse/core";
 import tinygradient from "tinygradient";
 import { computed, onMounted } from "vue";
 import { useSession } from "../stores/session";
-import { currentLocale, distanceAbbr, durationFormatter, formatDec } from "../utils";
+import { currentLocale, durationFormatter, formatDec } from "../utils";
 
 import { useRoute } from "vue-router";
 import { navbarState } from "../models/misc";
+import { toRunStats } from "../models/run";
 
 const route = useRoute();
 const session = useSession();
 
-const run = computed(() => session.runs[+route.params.index - 1]);
+const run = computed(
+    () =>
+        session.runs
+            .concat(Object.values(session.notableRuns?.runs ?? {}))
+            .find((r) => r.id == route.params.id)!,
+);
 
-onMounted(() => {
-    navbarState.title = runName.value;
-});
+const stats = computed(() =>
+    toRunStats(run.value, session.settings, session.statRanges.efficiency),
+);
 
-const distAbbr = distanceAbbr(session.settings.distance_unit);
+onMounted(() => (navbarState.title = stats.value.name));
 
 const redToGreen = tinygradient([
     { color: "#ff0000", pos: 0 },
@@ -26,77 +32,31 @@ const redToGreen = tinygradient([
 ]);
 
 const isDark = useDark();
-
-// Split efficiencies normalized to 0-1
-const normalizedSplitEfficiency = computed(() =>
-    session.statRanges.efficiency?.range
-        ? run.value.split_stats
-              .map((ss) => ss.efficiency)
-              .filter((eff): eff is number => eff !== undefined)
-              .map((eff) => (eff - session.statRanges.efficiency!.min) / session.statRanges.efficiency!.range)
-        : [],
-);
-
-const weatherIcon = computed(() => {
-    if (!run.value.weather) return undefined;
-
-    const r = run.value.weather.rain_mm;
-    if (r !== undefined) {
-        if (r > 2.5) return "bi-cloud-rain-fill";
-        if (r > 0) return "bi-cloud-drizzle-fill";
-    }
-
-    const c = run.value.weather.cloud_cover_pct;
-    if (c !== undefined) {
-        if (c > 75) return "bi-clouds-fill";
-        if (c > 50) return "bi-cloud-fill";
-        if (c > 25) return "bi-cloud-sun-fill";
-        return "bi-sun-fill";
-    }
-});
-
-const weatherIconColor = computed(() => {
-    if (!run.value.weather) return undefined;
-    const r = run.value.weather?.rain_mm ?? 0;
-    const c = run.value.weather?.cloud_cover_pct ?? -1;
-
-    if (r > 0) return "dodgerblue";
-    if (c > 25) return "gray";
-    if (c >= 0) return "gold";
-});
-
-const deviceTypeIcon = computed(() => {
-    if (run.value.device_type == "WATCH") return "bi-watch";
-    else if (run.value.device_type == "PHONE") return "bi-phone";
-});
-
-const runName = computed(() => {
-    if (run.value.start_time.hour < 11) return "Morning Run";
-    if (run.value.start_time.hour < 14) return "Midday Run";
-    if (run.value.start_time.hour < 17) return "Afternoon Run";
-    return "Evening Run";
-});
 </script>
 
 <template>
     <div class="col-lg-6">
-        <div class="card rounded-4 border-0 hover-highlight" :class="isDark ? 'bg-body-tertiary' : 'bg-body-secondary'">
+        <div
+            class="card rounded-4 border-0 hover-highlight"
+            :class="isDark ? 'bg-body-tertiary' : 'bg-body-secondary'"
+        >
             <div class="card-body">
                 <div class="d-flex justify-content-between card-title">
                     <h5 class="text-primary-emphasis">
                         <RouterLink
                             :to="`/run/${session.runs.indexOf(run) + 1}`"
                             class="stretched-link text-decoration-none text-primary-emphasis"
-                            >{{ runName }}
+                            >{{ stats.name }}
                         </RouterLink>
                     </h5>
-                    <h5 class="text-end">{{ formatDec(run.distance, 2) }} {{ distAbbr }}</h5>
+                    <h5 class="text-end">{{ formatDec(run.distance, 2) }} {{ stats.distAbbr }}</h5>
                 </div>
                 <div class="d-flex justify-content-between card-text">
                     <div>
                         <div>
                             {{
                                 run.start_time.toLocaleString(currentLocale, {
+                                    year: stats.includeYearInDate ? "numeric" : undefined,
                                     weekday: "long",
                                     month: "long",
                                     day: "numeric",
@@ -107,23 +67,34 @@ const runName = computed(() => {
                         </div>
                         <div v-if="run.location">{{ run.location.name }}</div>
                         <div class="d-flex align-items-center mt-2">
-                            <div v-if="normalizedSplitEfficiency.length > 0" class="eff-sq-container me-3">
+                            <div
+                                v-if="stats.normalizedSplitEfficiencies.length > 0"
+                                class="eff-sq-container me-3"
+                            >
                                 <div
-                                    v-for="eff in normalizedSplitEfficiency"
+                                    v-for="eff in stats.normalizedSplitEfficiencies"
                                     class="eff-sq"
-                                    :style="{ backgroundColor: redToGreen.rgbAt(eff).toHexString() }"
+                                    :style="{
+                                        backgroundColor: redToGreen.rgbAt(eff).toHexString(),
+                                    }"
                                 />
                             </div>
                             <i
                                 v-if="run.device_type == 'WATCH'"
                                 class="bi me-3 text-primary-emphasis"
-                                :class="deviceTypeIcon"
+                                :class="stats.deviceTypeIcon"
                             ></i>
-                            <i class="bi" :class="weatherIcon" :style="{ color: weatherIconColor }"></i>
+                            <i
+                                class="bi"
+                                :class="stats.weatherIcon"
+                                :style="{ color: stats.weatherIconColor }"
+                            ></i>
                         </div>
                     </div>
                     <div class="text-end">
-                        <div>{{ durationFormatter(run.average_pace) }} min/{{ distAbbr }}</div>
+                        <div>
+                            {{ durationFormatter(run.average_pace) }} min/{{ stats.distAbbr }}
+                        </div>
 
                         <div>
                             {{ durationFormatter(run.active_duration) }}

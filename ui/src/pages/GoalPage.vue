@@ -16,39 +16,47 @@ const session = useSession();
 const editGoalDialogRef = ref<InstanceType<typeof GoalDialog>>();
 const removeGoalDialogRef = ref<InstanceType<typeof ConfirmationDialog>>();
 
-const goal = computed(() => session.goals[+route.params.index - 1]);
-const stats = computed(() => toGoalStats(goal.value, session.settings!.distance_unit));
+const goal = computed(() => session.goals.find((g) => g.id == route.params.id)!);
+const stats = computed(() => toGoalStats(goal.value, session.settings));
 
-const progress = computed(() => (stats.value.goal.current_distance_meters / stats.value.goal.distance_meters) * 100);
+const progress = computed(
+    () => (stats.value.goal.current_distance_meters / stats.value.goal.distance_meters) * 100,
+);
 
 onMounted(() => {
     navbarState.title = stats.value.goal.name;
-    navbarState.actions = [{
-        icon: "bi-pencil",
-        callback: () => editGoalDialogRef.value?.open()
-    }, {
-        icon: "bi-trash",
-        callback: () => removeGoalDialogRef.value?.open()
-    }]
+    navbarState.actions = [
+        {
+            icon: "bi-pencil",
+            callback: () => editGoalDialogRef.value?.open(),
+        },
+        {
+            icon: "bi-trash",
+            callback: () => removeGoalDialogRef.value?.open(),
+        },
+    ];
 });
 
 const deleteDialogParmas = {
     title: "Remove goal",
     message: "Are you sure?",
     isCancelable: true,
-    buttons: [{
-        title: "Cancel",
-        isCancel: true,
-    }, {
-        title: "Yes",
-        action: async () => {
-            // TODO: Indicate indeterminate progress here?
-            await session.deleteGoal(goal.value);
-            router.back();
+    buttons: [
+        {
+            title: "Cancel",
+            isCancel: true,
         },
-        isPrimary: true,
-    }]
-} as DialogParams
+        {
+            title: "Yes",
+            action: async () => {
+                // TODO: Indicate indeterminate progress here?
+                await session.deleteGoal(goal.value);
+                router.back();
+            },
+            isPrimary: true,
+        },
+    ],
+} as DialogParams;
 </script>
 
 <template>
@@ -61,22 +69,37 @@ const deleteDialogParmas = {
                 <h5>
                     {{ stats.goal.name }}
                 </h5>
-                <h5 class="text-end"
-                    :class="stats.current_pace_diff >= 0 ? 'text-success-emphasis' : 'text-danger-emphasis'">
-                    {{ stats.current_pace_diff >= 0 ? "+" : "-" }}{{ formatDec(Math.abs(stats.current_pace_diff), 2) }}
+                <h5
+                    class="text-end"
+                    :class="
+                        stats.current_pace_diff >= 0
+                            ? 'text-success-emphasis'
+                            : 'text-danger-emphasis'
+                    "
+                >
+                    {{ stats.current_pace_diff >= 0 ? "+" : "-"
+                    }}{{ formatDec(Math.abs(stats.current_pace_diff), 2) }}
                     {{ stats.dist_abbr }}
                 </h5>
             </div>
             <div class="card-text">
-                <div>{{ formatDec(stats.total_dist, 2) }} {{ stats.dist_abbr }} in {{ stats.total_days }} days</div>
-                <div class="progress my-2" role="progressbar" aria-label="Goal progress"
-                    :aria-valuenow="stats.goal.current_distance_meters" aria-valuemin="0"
-                    :aria-valuemax="stats.goal.distance_meters">
+                <div>
+                    {{ formatDec(stats.total_dist, 2) }} {{ stats.dist_abbr }} in
+                    {{ stats.total_days }} days
+                </div>
+                <div
+                    class="progress my-2"
+                    role="progressbar"
+                    aria-label="Goal progress"
+                    :aria-valuenow="stats.goal.current_distance_meters"
+                    aria-valuemin="0"
+                    :aria-valuemax="stats.goal.distance_meters"
+                >
                     <div class="progress-bar" :style="{ width: `${progress}%` }"></div>
                 </div>
                 <div>
-                    {{ formatDec(stats.current_dist, 2) }} {{ stats.dist_abbr }} / {{ formatDec(stats.percent, 0) }}%
-                    complete<br />
+                    {{ formatDec(stats.current_dist, 2) }} {{ stats.dist_abbr }} /
+                    {{ formatDec(stats.percent, 0) }}% complete<br />
                 </div>
                 <div>
                     {{ stats.remaining_days }} days to go ({{ formatDec(stats.remaining_pace, 2) }}

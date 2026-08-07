@@ -12,26 +12,35 @@ const props = defineProps<{
 const isDark = useDark();
 
 const session = useSession();
-const stats = computed(() => toGoalStats(props.goal, session.settings!.distance_unit));
+const stats = computed(() => toGoalStats(props.goal, session.settings));
 
-const progress = computed(() => (stats.value.goal.current_distance_meters / stats.value.goal.distance_meters) * 100);
+const progress = computed(
+    () => (stats.value.goal.current_distance_meters / stats.value.goal.distance_meters) * 100,
+);
 </script>
 
 <template>
     <div class="col-lg-6">
-        <div class="card rounded-4 border-0 hover-highlight" :class="isDark ? 'bg-body-tertiary' : 'bg-body-secondary'">
+        <div
+            class="card rounded-4 border-0 hover-highlight"
+            :class="isDark ? 'bg-body-tertiary' : 'bg-body-secondary'"
+        >
             <div class="card-body">
                 <div class="d-flex justify-content-between card-title">
                     <h5>
                         <RouterLink
-                            :to="`/goal/${session.goals.indexOf(goal) + 1}`"
+                            :to="`/goal/${goal.id}`"
                             class="stretched-link text-decoration-none text-primary-emphasis"
                             >{{ stats.goal.name }}
                         </RouterLink>
                     </h5>
                     <h5
                         class="text-end"
-                        :class="stats.current_pace_diff >= 0 ? 'text-success-emphasis' : 'text-danger-emphasis'"
+                        :class="
+                            stats.current_pace_diff >= 0
+                                ? 'text-success-emphasis'
+                                : 'text-danger-emphasis'
+                        "
                     >
                         {{ stats.current_pace_diff >= 0 ? "+" : "-"
                         }}{{ formatDec(Math.abs(stats.current_pace_diff), 2) }}
@@ -39,7 +48,10 @@ const progress = computed(() => (stats.value.goal.current_distance_meters / stat
                     </h5>
                 </div>
                 <div class="card-text">
-                    <div>{{ formatDec(stats.total_dist, 2) }} {{ stats.dist_abbr }} in {{ stats.total_days }} days</div>
+                    <div>
+                        {{ formatDec(stats.total_dist, 2) }} {{ stats.dist_abbr }} in
+                        {{ stats.total_days }} days
+                    </div>
                     <div
                         class="progress my-2"
                         role="progressbar"
@@ -55,7 +67,9 @@ const progress = computed(() => (stats.value.goal.current_distance_meters / stat
                         {{ formatDec(stats.percent, 0) }}% complete<br />
                     </div>
                     <div>
-                        {{ stats.remaining_days }} days to go ({{ formatDec(stats.remaining_pace, 2) }}
+                        {{ stats.remaining_days }} days to go ({{
+                            formatDec(stats.remaining_pace, 2)
+                        }}
                         {{ stats.dist_abbr }} per day)
                     </div>
                 </div>

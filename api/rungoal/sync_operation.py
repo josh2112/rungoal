@@ -10,13 +10,13 @@ from zoneinfo import ZoneInfo
 from fastapi import HTTPException, status
 from pydantic import BaseModel, Field
 
-from rungoal.crud import get_user
-from rungoal.database import get_db
-from rungoal.google import GoogleHealthClient
-from rungoal.models import Error, SyncParams, SyncRequest
-from rungoal.settings import settings
-from rungoal.sync import sync_runs
-from rungoal.utils import ProgressProtocol, TimeRange
+from .crud import get_user
+from .database import get_db
+from .google import GoogleHealthClient
+from .models import Error, SyncParams, SyncRequest
+from .settings import settings
+from .sync import sync_runs
+from .utils import ProgressProtocol, TimeRange
 
 logger = logging.getLogger(__name__)
 

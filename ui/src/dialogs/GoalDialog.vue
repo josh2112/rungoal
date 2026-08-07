@@ -25,8 +25,7 @@ const session = useSession();
 
 const dialogRef = ref<Element>();
 const { open, close } = useDialog(dialogRef);
-defineExpose({ open })
-
+defineExpose({ open });
 
 onMounted(() => {
     if (props.goal) {
@@ -69,10 +68,23 @@ const endDate = computed({
 
 const distance = computed({
     get() {
-        return distanceConvert(goal.value.distance_meters, "meters", session.settings.distance_unit);
+        return Number(
+            formatDec(
+                distanceConvert(
+                    goal.value.distance_meters,
+                    "meters",
+                    session.settings.distance_unit,
+                ),
+                1,
+            ),
+        );
     },
     set(value) {
-        goal.value.distance_meters = distanceConvert(value, session.settings.distance_unit, "meters");
+        goal.value.distance_meters = distanceConvert(
+            value,
+            session.settings.distance_unit,
+            "meters",
+        );
     },
 });
 
@@ -80,19 +92,22 @@ const durationDays = computed(() => goal.value.start_date.until(goal.value.end_d
 
 const spanType = ref<"year" | "month" | "custom">("custom");
 
-const formatDuration = (length: number, name: string) => length ? `${length} ${name}${length == 1 ? "" : "s"}` : "";
+const formatDuration = (length: number, name: string) =>
+    length ? `${length} ${name}${length == 1 ? "" : "s"}` : "";
 
 const formatGoalTitle = () => {
     let start = `${goal.value.start_date.toLocaleString(currentLocale, { dateStyle: "long" })}: `;
     const diff = goal.value.start_date.until(goal.value.end_date.add({ days: 1 })).round({
         largestUnit: "year",
-        relativeTo: goal.value.start_date
+        relativeTo: goal.value.start_date,
     });
 
-    const years = formatDuration(diff.years, "year"), months = formatDuration(diff.months, "month"),
-        weeks = formatDuration(diff.days / 7, "week"), days = formatDuration(diff.days, "days");
+    const years = formatDuration(diff.years, "year"),
+        months = formatDuration(diff.months, "month"),
+        weeks = formatDuration(diff.days / 7, "week"),
+        days = formatDuration(diff.days, "days");
 
-    const durations = [years, months, weeks, days].filter((v) => v).join(' ')
+    const durations = [years, months, weeks, days].filter((v) => v).join(" ");
 
     return `${start} ${durations}`;
 };
@@ -119,62 +134,149 @@ const onRadioChanged = () => {
 </script>
 
 <template>
-    <div ref="dialogRef" class="modal fade" tabindex="-1" aria-labelledby="goalModalTitle" aria-hidden="true">
+    <div
+        ref="dialogRef"
+        class="modal fade"
+        tabindex="-1"
+        aria-labelledby="goalModalTitle"
+        aria-hidden="true"
+    >
         <div class="modal-dialog">
             <form @submit.prevent="submit">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h1 class="modal-title fs-5" id="goalModalTitle">{{ isUpdate ? "Update" : "Add" }} Goal</h1>
-                        <button type="button" class="btn-close" @click="() => close()" aria-label="Close"></button>
+                        <h1 class="modal-title fs-5" id="goalModalTitle">
+                            {{ isUpdate ? "Update" : "Add" }} Goal
+                        </h1>
+                        <button
+                            type="button"
+                            class="btn-close"
+                            @click="() => close()"
+                            aria-label="Close"
+                        ></button>
                     </div>
                     <div class="modal-body">
                         <div class="form-floating">
-                            <input type="text" class="form-control" id="name" placeholder="_" required
-                                v-model.number="goal.name" />
+                            <input
+                                type="text"
+                                class="form-control"
+                                id="name"
+                                placeholder="_"
+                                required
+                                v-model.number="goal.name"
+                            />
                             <label for="name">Name</label>
                         </div>
 
                         <div class="form-floating mt-3 input-group">
-                            <input type="number" class="form-control" id="distance" placeholder="_" min="1" max="10000"
-                                required v-model.number="distance" />
-                            <label for="distance">Distance ({{ distanceAbbr(session.settings.distance_unit)
-                                }})</label>
-                            <span class="input-group-text">{{ formatDec(Math.max(0, distanceConvert(goal.distance_meters
-                                / durationDays, "meters",
-                                session.settings.distance_unit)), 2)
-                            }} {{ distanceAbbr(session.settings.distance_unit) }}/day</span>
+                            <input
+                                type="number"
+                                class="form-control"
+                                id="distance"
+                                placeholder="_"
+                                min="1"
+                                max="10000"
+                                required
+                                v-model.number="distance"
+                            />
+                            <label for="distance"
+                                >Distance ({{
+                                    distanceAbbr(session.settings.distance_unit)
+                                }})</label
+                            >
+                            <span class="input-group-text"
+                                >{{
+                                    formatDec(
+                                        Math.max(
+                                            0,
+                                            distanceConvert(
+                                                goal.distance_meters / durationDays,
+                                                "meters",
+                                                session.settings.distance_unit,
+                                            ),
+                                        ),
+                                        2,
+                                    )
+                                }}
+                                {{ distanceAbbr(session.settings.distance_unit) }}/day</span
+                            >
                         </div>
 
-                        <div class="btn-group my-3 d-flex justify-content-center" role="group"
-                            aria-label="Basic radio toggle button group">
-                            <input type="radio" class="btn-check" name="radioGroup" id="year" autocomplete="off"
-                                value="year" v-model="spanType" @change="onRadioChanged">
+                        <div
+                            class="btn-group my-3 d-flex justify-content-center"
+                            role="group"
+                            aria-label="Basic radio toggle button group"
+                        >
+                            <input
+                                type="radio"
+                                class="btn-check"
+                                name="radioGroup"
+                                id="year"
+                                autocomplete="off"
+                                value="year"
+                                v-model="spanType"
+                                @change="onRadioChanged"
+                            />
                             <label class="btn btn-outline-primary" for="year">This year</label>
 
-                            <input type="radio" class="btn-check" name="radioGroup" id="month" autocomplete="off"
-                                value="month" v-model="spanType" @change="onRadioChanged">
+                            <input
+                                type="radio"
+                                class="btn-check"
+                                name="radioGroup"
+                                id="month"
+                                autocomplete="off"
+                                value="month"
+                                v-model="spanType"
+                                @change="onRadioChanged"
+                            />
                             <label class="btn btn-outline-primary" for="month">This month</label>
 
-                            <input type="radio" class="btn-check" name="radioGroup" id="custom" autocomplete="off"
-                                value="custom" v-model="spanType" @change="onRadioChanged">
+                            <input
+                                type="radio"
+                                class="btn-check"
+                                name="radioGroup"
+                                id="custom"
+                                autocomplete="off"
+                                value="custom"
+                                v-model="spanType"
+                                @change="onRadioChanged"
+                            />
                             <label class="btn btn-outline-primary" for="custom">Custom</label>
                         </div>
 
                         <fieldset :disabled="spanType != 'custom'">
                             <div class="form-floating">
-                                <input type="date" class="form-control" id="startDate" placeholder="_" min="2000-01-01"
-                                    max="2100-12-31" v-model="startDate" required />
+                                <input
+                                    type="date"
+                                    class="form-control"
+                                    id="startDate"
+                                    placeholder="_"
+                                    min="2000-01-01"
+                                    max="2100-12-31"
+                                    v-model="startDate"
+                                    required
+                                />
                                 <label for="startDate">Start date</label>
                             </div>
                             <div class="form-floating mt-3">
-                                <input type="date" class="form-control" id="endDate" placeholder="_" min="2000-01-01"
-                                    max="2100-12-31" v-model="endDate" required />
+                                <input
+                                    type="date"
+                                    class="form-control"
+                                    id="endDate"
+                                    placeholder="_"
+                                    min="2000-01-01"
+                                    max="2100-12-31"
+                                    v-model="endDate"
+                                    required
+                                />
                                 <label for="endDate">End date (inclusive)</label>
                             </div>
                         </fieldset>
                     </div>
                     <div class="modal-footer">
-                        <button type="submit" class="btn btn-primary">{{ isUpdate ? "Update" : "Add" }}</button>
+                        <button type="submit" class="btn btn-primary">
+                            {{ isUpdate ? "Update" : "Add" }}
+                        </button>
                     </div>
                 </div>
             </form>

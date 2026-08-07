@@ -1,7 +1,7 @@
 import asyncio
-from collections.abc import AsyncIterable, Callable
+from collections.abc import AsyncIterable, Callable, Sequence
 from datetime import UTC, datetime
-from typing import Annotated, Any, Sequence, cast
+from typing import Annotated, Any, cast
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Cookie, Query, Request, Response, status
@@ -9,22 +9,23 @@ from fastapi.sse import EventSourceResponse
 from jose import JWTError
 
 from rungoal import auth, crud
-from rungoal.deps import DepDb, DepUser
-from rungoal.models import (
+
+from .deps import DepDb, DepUser
+from .models import (
     AccessToken,
     GoalCreate,
     GoalResponse,
     GoalUpdate,
     GoogleApiAuthCode,
     NotableRunsResponse,
-    Run,
     RunResponse,
     StatsRanges,
     SyncRequest,
     User,
     UserResponse,
+    sqids,
 )
-from rungoal.sync_operation import SyncState, sync_start, sync_status, sync_stream
+from .sync_operation import SyncState, sync_start, sync_status, sync_stream
 
 
 class RungoalRouter(APIRouter):
@@ -139,14 +140,14 @@ def add_goal(db: DepDb, user: DepUser, goal: GoalCreate) -> list[GoalResponse]:
 
 
 @api.patch("/goals/{goal_id}")
-def update_goal(db: DepDb, user: DepUser, goal_id: int, goal: GoalUpdate) -> list[GoalResponse]:
-    crud.update_goal(db, cast(int, user.id), goal_id, goal)
+def update_goal(db: DepDb, user: DepUser, goal_id: str, goal: GoalUpdate) -> list[GoalResponse]:
+    crud.update_goal(db, cast(int, user.id), sqids.decode(goal_id)[0], goal)
     return get_goals(db, user)
 
 
 @api.delete("/goals/{goal_id}")
-def delete_goal(db: DepDb, user: DepUser, goal_id: int):
-    crud.delete_goal(db, cast(int, user.id), goal_id)
+def delete_goal(db: DepDb, user: DepUser, goal_id: str):
+    crud.delete_goal(db, cast(int, user.id), sqids.decode(goal_id)[0])
     return status.HTTP_200_OK
 
 
@@ -157,14 +158,19 @@ def get_stats(db: DepDb, user: DepUser) -> StatsRanges:
 
 @api.get("/runs/notable")
 def get_notable_runs(db: DepDb, user: DepUser) -> NotableRunsResponse:
-    return crud.get_notable_runs(db, cast(int, user.id))
+    runs_by_notable = crud.get_notable_runs(db, cast(int, user.id))
+    return NotableRunsResponse(
+        runs={n: RunResponse.model_validate(run) for n, run in runs_by_notable.items()}
+    )
 
 
-@api.get("/runs", response_model=list[RunResponse])
+@api.get("/runs")
 def get_runs(
     db: DepDb,
     user: DepUser,
     from_: Annotated[datetime, Query(alias="from")],
     to: datetime,
-) -> Sequence[Run]:
-    return crud.get_runs(db, cast(int, user.id), from_, to)
+) -> Sequence[RunResponse]:
+    return [
+        RunResponse.model_validate(run) for run in crud.get_runs(db, cast(int, user.id), from_, to)
+    ]

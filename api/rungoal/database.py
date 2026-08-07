@@ -7,7 +7,7 @@ from alembic.config import Config
 from sqlalchemy import Engine, event, make_url
 from sqlmodel import Session, create_engine
 
-from rungoal.settings import settings
+from .settings import settings
 
 
 # For file-based DBs (like SQLite), ensure the directory exists

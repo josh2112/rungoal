@@ -8,8 +8,8 @@ const props = defineProps<{
 </script>
 
 <template>
-    <div v-if="run" class="mt-3">
+    <div v-if="run" class="col-lg-6 mt-3">
         <slot></slot>
-        <RunCard :run="run" />
+        <RunCard class="mt-3" :run="run" />
     </div>
 </template>

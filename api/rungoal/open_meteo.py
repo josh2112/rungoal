@@ -2,8 +2,8 @@ from datetime import datetime
 
 import httpx
 
-from rungoal.models import WeatherBase
-from rungoal.utils import block_overlap
+from .models import WeatherBase
+from .utils import block_overlap
 
 
 class OpenMeteoClient(httpx.Client):
