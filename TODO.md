@@ -1,3 +1,6 @@
+- Turns out the only required subelement of a TCX <Trackpoint> is time?? Position, altitude, distance and heart rate are all optional, and it looks like the first 3 of those are not recorded while paused. This will majorly effect efficiency calculations. We need all 3 of distance, altitude and heart rate to compute a efficiency.
+    - Maybe only consider segments where we have all 3? First, filter out any trackpoint missing any of these values. But that will give us a list of trackpoints with disjointed times.
+    - Then, go through and find continuous time segments (where we have data at least every 5 seconds), and make each of these a separate efficiency split.
 - Make average run efficiency (meters per heartbeat) a first-class metric on the run card
 - Heatmap: Make a histogram grid of run trackpoint geohashes. Probably a library for this.
 - Calendar view: Simple calendar month view with run days circled. Tapping a day takes you to the runs for that day.

@@ -302,7 +302,12 @@ def sync_runtracker(
         client.db.commit()
 
 
-def sync_tcx(client: GoogleHealthClient, progress: ProgressProtocol, runs: Sequence[Run]):
+def sync_tcx(
+    client: GoogleHealthClient,
+    progress: ProgressProtocol,
+    runs: Sequence[Run],
+    output: Path | None = None,
+):
     task = "Downloading TCX files..."
     progress.start_task(task, total=len(runs) + 1)
 
@@ -311,11 +316,13 @@ def sync_tcx(client: GoogleHealthClient, progress: ProgressProtocol, runs: Seque
     client.db.commit()
 
     def _fetch(run: RunFetchContext) -> list[TrackPoint]:
-        trackpoints = client.fetch_tcx(run)
+        trackpoints = client.fetch_tcx(run, output)
         progress.advance(task)
         return trackpoints
 
     try:
+        if output:
+            output.mkdir(parents=True, exist_ok=True)
         with ThreadPoolExecutor(max_workers=4) as executor:
             client.db.add_all(tp for lst in executor.map(_fetch, runs) for tp in lst)
         progress.advance(task)

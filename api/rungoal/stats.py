@@ -8,6 +8,9 @@ def calc_split_stats(db: Session, run_id: int, split_secs: int) -> list[RunSplit
         select(TrackPoint).where(TrackPoint.run_id == run_id).order_by(col(TrackPoint.elapsed_secs))
     ).all()
 
+    # Eliminate trackpoints that don't have all 3 metrics we need to calculate efficiency
+    trackpoints = [tp for tp in trackpoints if tp.distance_meters and tp.alt_meters]
+
     # Divide the trackpoints into X-second-long splits
     markers, end_time = [], split_secs
     for i, tp in enumerate(trackpoints):

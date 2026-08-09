@@ -4,6 +4,8 @@ import xml.etree.ElementTree as ET
 from collections.abc import Generator
 from datetime import datetime, timedelta
 from functools import cache
+from pathlib import Path
+from typing import cast
 
 import google.auth.transport.requests
 import httpx
@@ -104,37 +106,43 @@ class GoogleHealthClient(httpx.Client):
             )
         )
 
-    def fetch_tcx(self, run: RunFetchContext) -> list[TrackPoint]:
+    def fetch_tcx(self, run: RunFetchContext, output: Path | None) -> list[TrackPoint]:
         response = self.get(
             f"dataTypes/exercise/dataPoints/{run.data_source_id}:exportExerciseTcx?alt=media",
         )
         response.raise_for_status()
 
+        if output:
+            with open((output / run.data_source_id).with_suffix(".tcx"), "wb") as f:
+                f.write(response.content)
+
         ns = {"tcx": "http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2"}
         root = ET.fromstring(response.content)
         trackpoints = []
 
-        def get_subel_text(el: ET.Element, name: str):
-            subel = el.find(f"./tcx:{name}", ns)
-            assert subel is not None and subel.text
-            return subel.text
+        def get_subel_text(el: ET.Element, name: str) -> str | None:
+            text = subel.text if (subel := el.find(f"./tcx:{name}", ns)) is not None else None
+            return text or None
+
+        def get_subel_float(el: ET.Element, name: str) -> float | None:
+            return float(v) if (v := get_subel_text(el, name)) else None
+
+        def get_subel_int(el: ET.Element, name: str) -> int | None:
+            return int(v) if (v := get_subel_text(el, name)) else None
 
         for tp in root.findall(".//tcx:Trackpoint", ns):
-            el_hr = tp.find("./tcx:HeartRateBpm/tcx:Value", ns)
-
-            hr = int(el_hr.text) if el_hr is not None and el_hr.text is not None else None
-
             trackpoints.append(
                 TrackPoint(
                     run_id=run.id,
                     elapsed_secs=(
-                        datetime.fromisoformat(get_subel_text(tp, "Time")) - run.start_time
+                        datetime.fromisoformat(cast(str, get_subel_text(tp, "Time")))
+                        - run.start_time
                     ).total_seconds(),
-                    alt_meters=float(get_subel_text(tp, "AltitudeMeters")),
-                    distance_meters=float(get_subel_text(tp, "DistanceMeters")),
-                    lat_deg=float(get_subel_text(tp, "Position/tcx:LatitudeDegrees")),
-                    lon_deg=float(get_subel_text(tp, "Position/tcx:LongitudeDegrees")),
-                    heart_rate_bpm=hr,
+                    alt_meters=get_subel_float(tp, "AltitudeMeters"),
+                    distance_meters=get_subel_float(tp, "DistanceMeters"),
+                    lat_deg=get_subel_float(tp, "Position/tcx:LatitudeDegrees"),
+                    lon_deg=get_subel_float(tp, "Position/tcx:LongitudeDegrees"),
+                    heart_rate_bpm=get_subel_int(tp, "HeartRateBpm/tcx:Value"),
                 )
             )
 

@@ -259,10 +259,10 @@ class TrackPoint(SQLModel, table=True):
     run: Run | None = Relationship(back_populates="track_points")
 
     elapsed_secs: float
-    lat_deg: float
-    lon_deg: float
-    alt_meters: float
-    distance_meters: float
+    lat_deg: float | None
+    lon_deg: float | None
+    alt_meters: float | None
+    distance_meters: float | None
     heart_rate_bpm: int | None
 
 

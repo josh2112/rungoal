@@ -104,7 +104,19 @@ def cmd_sync_runtracker(
 
 
 @app.command("sync-tcx", help="Syncs TCX track data for runs in the given timespan.")
-def cmd_sync_tcx(user_id: int, from_: datetime, to: datetime | None = None, replace: bool = False):
+def cmd_sync_tcx(
+    user_id: int,
+    from_: datetime,
+    to: datetime | None = None,
+    replace: bool = False,
+    output: Annotated[
+        Path | None,
+        typer.Option(
+            file_okay=False,
+            help="If provided, downloaded .tcx data will be saved in this directory.",
+        ),
+    ] = None,
+):
     with get_db() as db, CliProgress() as progress:
         user = get_user(db, user_id)
         # Select runs for this user and timespan for which we don't already have trackpoints
@@ -119,7 +131,7 @@ def cmd_sync_tcx(user_id: int, from_: datetime, to: datetime | None = None, repl
             sql = sql.where(col(Run.id).notin_(select(TrackPoint.run_id)))
         runs = db.exec(sql).all()
         with GoogleHealthClient(user, db) as client:
-            sync_tcx(client, progress, runs)
+            sync_tcx(client, progress, runs, output)
 
 
 @app.command("sync-weather", help="Syncs weather data for runs in the given timespan.")
@@ -144,7 +156,10 @@ def cmd_sync_weather(
 
 @app.command("sync-split-stats", help="Syncs split stats for runs in the given timespan.")
 def cmd_sync_split_stats(
-    user_id: int, from_: datetime, to: datetime | None = None, replace: bool = False
+    user_id: int,
+    from_: datetime,
+    to: datetime | None = None,
+    replace: bool = False,
 ):
     with get_db() as db, CliProgress() as progress:
         user = get_user(db, user_id)
@@ -248,9 +263,8 @@ def cmd_init_db(
         ),
     ] = False,
 ):
-    from alembic.config import Config
-
     from alembic import command
+    from alembic.config import Config
 
     alembic_config = Config("alembic.ini")
 
