@@ -1,3 +1,4 @@
+- Google token expires: ('invalid_grant: Token has been expired or revoked.') I thought that's what the refresh token was for? Or is it expiring?
 - Make average run efficiency (meters per heartbeat) a first-class metric on the run card
 - Heatmap: Make a histogram grid of run trackpoint geohashes. Probably a library for this.
 - Calendar view: Simple calendar month view with run days circled. Tapping a day takes you to the runs for that day.
