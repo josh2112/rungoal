@@ -218,7 +218,7 @@ class Run(RunBase, table=True):
     split_stats: list["RunSplitStats"] = Relationship(
         back_populates="run",
         cascade_delete=True,
-        sa_relationship_kwargs={"order_by": "RunSplitStats.split_secs"},
+        sa_relationship_kwargs={"order_by": "RunSplitStats.start_secs"},
     )
     weather: Weather | None = Relationship(back_populates="run", cascade_delete=True)
 
@@ -267,11 +267,12 @@ class TrackPoint(SQLModel, table=True):
 
 
 class RunSplitStatsResponse(SQLModel):
-    split_secs: int
+    start_secs: int
+    end_secs: int
     dist_meters: float
     gad_meters: float
-    hr_avg: float | None
-    efficiency: float | None  # meters per heartbeat
+    hr_avg: float
+    efficiency: float  # meters per heartbeat
 
 
 class RunSplitStats(RunSplitStatsResponse, table=True):
@@ -286,7 +287,6 @@ class RunSplitStats(RunSplitStatsResponse, table=True):
 class Range(BaseModel):
     min: float
     max: float
-    range: float
 
 
 class StatsRanges(BaseModel):

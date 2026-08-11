@@ -1,4 +1,5 @@
 import { Temporal } from "temporal-polyfill";
+import tinygradient from "tinygradient";
 
 export const { locale: currentLocale } = new Intl.DateTimeFormat().resolvedOptions();
 
@@ -19,7 +20,8 @@ export const durationFormatter = (duration: Temporal.Duration) => {
     if (duration.hours == 0) {
         return `${duration.minutes}:${paddedSeconds}`;
     } else {
-        return `${duration.hours}:${String(duration.seconds).padStart(2, "0")}:${paddedSeconds}`;
+        const paddedMinutes = String(duration.minutes).padStart(2, "0");
+        return `${duration.hours}:${paddedMinutes}:${paddedSeconds}`;
     }
 };
 
@@ -94,7 +96,6 @@ export function temperatureAbbr(unit: TemperatureUnit) {
 export interface Range {
     min: number;
     max: number;
-    range: number;
 }
 
 // Returns an array with the values normalized to the given range
@@ -102,6 +103,12 @@ export function normalizeValues(values: (number | undefined)[], range: Range) {
     return range
         ? values
               .filter((eff): eff is number => eff !== undefined)
-              .map((eff) => (eff - range.min) / range.range)
+              .map((eff) => (eff - range.min) / (range.max - range.min))
         : [];
 }
+
+export const gradientRedToGreen = tinygradient([
+    { color: "#ff0000", pos: 0 },
+    { color: "#ff8800", pos: 0.5 },
+    { color: "#00ff00", pos: 1 },
+]);

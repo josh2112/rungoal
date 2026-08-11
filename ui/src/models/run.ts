@@ -2,7 +2,6 @@ import { Temporal } from "temporal-polyfill";
 import {
     distanceAbbr,
     distanceConvert,
-    normalizeValues,
     parseUtcDateTime,
     type DistanceUnit,
     type Range,
@@ -18,11 +17,12 @@ export interface Weather {
 }
 
 export interface RunSplitStats {
-    split_secs: number;
+    start_secs: number;
+    end_secs: number;
     dist_meters: number;
     gad_meters: number;
-    hr_avg?: number;
-    efficiency?: number;
+    hr_avg: number;
+    efficiency: number;
 }
 
 interface RunLocation {
@@ -148,7 +148,7 @@ const deviceTypeIcon = (deviceType?: string) => {
 
 const currentYear = Temporal.Now.plainDateISO().year;
 
-export function toRunStats(run: Run, settings: Settings, efficiencyRange?: Range): RunStats {
+export function toRunStats(run: Run, settings: Settings): RunStats {
     return {
         run: run,
         distAbbr: distanceAbbr(settings.distance_unit),
@@ -156,12 +156,6 @@ export function toRunStats(run: Run, settings: Settings, efficiencyRange?: Range
         weatherIcon: weatherIcon(run.weather),
         weatherIconColor: weatherIconColor(run.weather),
         deviceTypeIcon: deviceTypeIcon(run.device_type),
-        normalizedSplitEfficiencies: efficiencyRange
-            ? normalizeValues(
-                  run.split_stats.map((ss) => ss.efficiency),
-                  efficiencyRange,
-              )
-            : [],
         includeYearInDate: run.start_time.year < currentYear,
     } as RunStats;
 }

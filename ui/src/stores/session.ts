@@ -259,6 +259,6 @@ export const useSession = defineStore("session", () => {
         lastSynced,
         getRuns,
         getPreviousRuns,
-        statRanges: statsRanges,
+        statsRanges,
     };
 });

@@ -118,9 +118,7 @@ def get_stats(db: Session, user_id: int) -> StatsRanges:
         .where(Run.user_id == user_id)
     ).one()
     eff_range = (
-        Range(min=eff_min, max=eff_max, range=eff_max - eff_min)
-        if eff_min is not None and eff_max is not None
-        else None
+        Range(min=eff_min, max=eff_max) if eff_min is not None and eff_max is not None else None
     )
     return StatsRanges(efficiency=eff_range)
 

@@ -9,11 +9,11 @@
             "args": ["dev"]
         },
         {
-            "name": "sync-locations",
+            "name": "sync-split-stats",
             "type": "debugpy",
             "request": "launch",
             "module": "rungoal.cli",
-            "args": ["sync-locations", "1", "2025-01-01", "--replace"]
+            "args": ["sync-split-stats", "1", "2025-12-01", "--replace"]
         }
     ]
 }

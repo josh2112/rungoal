@@ -31,10 +31,10 @@ def calc_split_stats(db: Session, run_id: int, split_secs: int) -> list[RunSplit
                 largest_gap = max(largest_gap, i - last_hr - 1)
             last_hr = i
 
-    if largest_gap == len(trackpoints):
+    if last_hr == -1:
         return []
     elif largest_gap > 2:
-        raise StatsCalcException("Gap of larger than 2 found in heart rate tracking!")
+        raise StatsCalcException("Gap of 3 or larger found in heart rate tracking!")
 
     # Next, we need to separate pauses from data hiccups by looking at distances (distance and altitude gaps always
     # go together). Gaps have been seen with sizes varying from 1 TP to 160 or more. If the gap is more than 5 TP
@@ -78,6 +78,8 @@ def calc_split_stats(db: Session, run_id: int, split_secs: int) -> list[RunSplit
 
                 last_hr = i
 
+    # Break the active periods into splits of around [split_secs] seconds each. Avoid small splits (< 1 min) by
+    # appending them to the previous split.
     split_groups: list[list[TrackPoint]] = []
     for g in active_groups:
         # Avoid small splits (< 1 min).
@@ -89,6 +91,9 @@ def calc_split_stats(db: Session, run_id: int, split_secs: int) -> list[RunSplit
                 (i for i, tp in enumerate(g) if tp.elapsed_secs - start > split_secs),
                 len(g),
             )
+            # If this would leave a small end split, just take the rest of the array
+            if i < len(g) and g[-1].elapsed_secs - g[i].elapsed_secs < 60:
+                i = len(g)
             split_groups.append(g[i_prev:i])
 
     split_stats: list[RunSplitStats] = []
@@ -112,8 +117,7 @@ def calc_split_stats(db: Session, run_id: int, split_secs: int) -> list[RunSplit
             dist_split += d
             gad_split += d * gf
 
-        elapsed_secs = group[-1].elapsed_secs - group[0].elapsed_secs
-        ngs_split = gad_split / elapsed_secs
+        ngs_split = gad_split / (group[-1].elapsed_secs - group[0].elapsed_secs)
 
         hr_avg = sum(cast(int, tp.heart_rate_bpm) for tp in group) / len(group)
 
@@ -123,11 +127,12 @@ def calc_split_stats(db: Session, run_id: int, split_secs: int) -> list[RunSplit
         split_stats.append(
             RunSplitStats(
                 run_id=run_id,
-                split_secs=round(elapsed_secs),
+                start_secs=round(group[0].elapsed_secs),
+                end_secs=round(group[-1].elapsed_secs),
                 dist_meters=dist_split,
                 gad_meters=gad_split,
                 hr_avg=hr_avg,
-                efficiency=eff_split if eff_split else None,
+                efficiency=eff_split,
             )
         )
 
