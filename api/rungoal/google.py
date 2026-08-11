@@ -130,13 +130,15 @@ class GoogleHealthClient(httpx.Client):
         def get_subel_int(el: ET.Element, name: str) -> int | None:
             return int(v) if (v := get_subel_text(el, name)) else None
 
-        for tp in root.findall(".//tcx:Trackpoint", ns):
+        nodes = root.findall(".//tcx:Trackpoint", ns)
+        start_time = datetime.fromisoformat(cast(str, get_subel_text(nodes[0], "Time")))
+
+        for tp in nodes:
             trackpoints.append(
                 TrackPoint(
                     run_id=run.id,
                     elapsed_secs=(
-                        datetime.fromisoformat(cast(str, get_subel_text(tp, "Time")))
-                        - run.start_time
+                        datetime.fromisoformat(cast(str, get_subel_text(tp, "Time"))) - start_time
                     ).total_seconds(),
                     alt_meters=get_subel_float(tp, "AltitudeMeters"),
                     distance_meters=get_subel_float(tp, "DistanceMeters"),
