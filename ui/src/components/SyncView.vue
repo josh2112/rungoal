@@ -48,10 +48,10 @@ const lastSyncedMsg = computed(() => {
             const mins = Math.round(s / 60);
             return `${mins} minute${mins != 1 ? "s" : ""} ago`;
         } else if (s < 60 * 60 * 24) {
-            const hours = Math.round((s / 60) * 60);
-            return `${hours} hours${hours != 1 ? "s" : ""} ago`;
+            const hours = Math.round(s / 60 / 60);
+            return `${hours} hour${hours != 1 ? "s" : ""} ago`;
         } else {
-            const days = Math.round((s / 60) * 60 * 24);
+            const days = Math.round(s / 60 / 60 / 24);
             return `${days} days${days != 1 ? "s" : ""} ago`;
         }
     }

@@ -3,5 +3,7 @@ client_secret.json
 *.db
 tmp/
 
+tcx/
+
 __pycache__/
 api/cache
