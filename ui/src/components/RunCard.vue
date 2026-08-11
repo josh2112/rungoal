@@ -51,7 +51,7 @@ const isDark = useDark();
                     <div v-if="run.location">{{ run.location.name }}</div>
                     <div class="d-flex align-items-center mt-2">
                         <EfficiencyBar
-                            v-if="session.statsRanges.efficiency"
+                            v-if="session.statsRanges.efficiency && stats.run.split_stats.length > 0"
                             class="me-3"
                             :efficiency-range="session.statsRanges.efficiency"
                             :split-stats="stats.run.split_stats"
