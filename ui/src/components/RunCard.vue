@@ -3,7 +3,7 @@ import { useDark } from "@vueuse/core";
 import { computed } from "vue";
 import { toRunStats, type Run } from "../models/run";
 import { useSession } from "../stores/session";
-import { currentLocale, durationFormatter, formatDec } from "../utils";
+import { currentLocale, durationFormatter, formatDec, temperatureConvert } from "../utils";
 import EfficiencyBar from "./EfficiencyBar.vue";
 
 const props = defineProps<{
@@ -48,10 +48,15 @@ const isDark = useDark();
                             })
                         }}
                     </div>
-                    <div v-if="run.location">{{ run.location.name }}</div>
+                    <div v-if="run.location">
+                        <i class="bi bi-geo-alt-fill me-1 text-primary-emphasis" />
+                        {{ run.location.name }}
+                    </div>
                     <div class="d-flex align-items-center mt-2">
                         <EfficiencyBar
-                            v-if="session.statsRanges.efficiency && stats.run.split_stats.length > 0"
+                            v-if="
+                                session.statsRanges.efficiency && stats.run.split_stats.length > 0
+                            "
                             class="me-3"
                             :efficiency-range="session.statsRanges.efficiency"
                             :split-stats="stats.run.split_stats"
@@ -66,6 +71,18 @@ const isDark = useDark();
                             :class="stats.weatherIcon"
                             :style="{ color: stats.weatherIconColor }"
                         ></i>
+                        <span v-if="stats.run.weather?.temp_c" class="ms-2"
+                            >{{
+                                formatDec(
+                                    temperatureConvert(
+                                        stats.run.weather.temp_c,
+                                        "celsius",
+                                        session.settings.temperature_unit,
+                                    ),
+                                    0,
+                                )
+                            }}°</span
+                        >
                     </div>
                 </div>
                 <div class="text-end">

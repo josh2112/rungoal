@@ -1,25 +1,31 @@
 import re
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 GRID_SIZE = 0.05
 
 
+@dataclass
+class LatLon:
+    lat: float
+    lon: float
+
+
 class MultiPolygon:
-    def __init__(self, points: list[list[tuple[float, float]]]):
+    def __init__(self, points: list[list[LatLon]]):
         self.polygons = points
 
-    def contains_point(self, point: tuple[float, float]) -> bool:
+    def contains_point(self, p: LatLon) -> bool:
         for poly in self.polygons:
             inside = False
             j = len(poly) - 1
-            lat, lon = point
 
             for i in range(len(poly)):
-                lat1, lon1 = poly[i]
-                lat2, lon2 = poly[j]
+                lat1, lon1 = poly[i].lat, poly[i].lon
+                lat2, lon2 = poly[j].lat, poly[j].lon
 
-                if ((lon1 > lon) != (lon2 > lon)) and (
-                    lat < (lat2 - lat1) * (lon - lon1) / (lon2 - lon1) + lat1
+                if ((lon1 > p.lon) != (lon2 > p.lon)) and (
+                    p.lat < (lat2 - lat1) * (p.lon - lon1) / (lon2 - lon1) + lat1
                 ):
                     inside = not inside
 
@@ -30,7 +36,7 @@ class MultiPolygon:
 
         return False
 
-    def count_points_inside(self, points: list[tuple[float, float]]):
+    def count_points_inside(self, points: Sequence[LatLon]):
         return sum(1 for p in points if self.contains_point(p))
 
     @classmethod
@@ -38,12 +44,12 @@ class MultiPolygon:
         if "EMPTY" in wkt_string:
             return MultiPolygon([])
 
-        polygons = []
+        polygons: list[list[LatLon]] = []
         for ring_str in re.findall(r"\(([^()]+)\)", wkt_string):
-            ring = []
+            ring: list[LatLon] = []
             for pair in ring_str.split(","):
                 parts = pair.strip().split()
-                ring.append((float(parts[1]), float(parts[0])))
+                ring.append(LatLon(float(parts[1]), float(parts[0])))
             polygons.append(ring)
 
         return MultiPolygon(polygons)
@@ -53,7 +59,7 @@ class MultiPolygon:
             return "MULTIPOLYGON EMPTY"
 
         wkt_polygons = [
-            f"(({', '.join(f'{lon} {lat}' for lat, lon in poly)}))" for poly in self.polygons
+            f"(({', '.join(f'{p.lon} {p.lat}' for p in poly)}))" for poly in self.polygons
         ]
         return f"MULTIPOLYGON ({', '.join(wkt_polygons)})"
 
@@ -63,8 +69,8 @@ class BoundingBox:
         self.min_lat, self.min_lon, self.max_lat, self.max_lon = min_lat, min_lon, max_lat, max_lon
 
     @classmethod
-    def from_points(cls, points: Sequence[tuple[float, float]]) -> "BoundingBox":
-        lats, lons = [p[0] for p in points], [p[1] for p in points]
+    def from_points(cls, points: Sequence[LatLon]) -> "BoundingBox":
+        lats, lons = [p.lat for p in points], [p.lon for p in points]
         return BoundingBox(
             min_lat=min(lats), min_lon=min(lons), max_lat=max(lats), max_lon=max(lons)
         )
@@ -93,8 +99,11 @@ class BoundingBox:
             f"{self.min_lon} {self.min_lat}))"
         )
 
-    def contains(self, lat: float, lon: float) -> bool:
-        return self.min_lat <= lat <= self.max_lat and self.min_lon <= lon <= self.max_lon
+    def contains(self, position: LatLon) -> bool:
+        return (
+            self.min_lat <= position.lat <= self.max_lat
+            and self.min_lon <= position.lon <= self.max_lon
+        )
 
     def intersects(self, other: "BoundingBox") -> bool:
         lat_ix = (self.min_lat <= other.max_lat) and (self.max_lat >= other.min_lat)

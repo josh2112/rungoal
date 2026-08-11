@@ -5,7 +5,7 @@ import httpx
 from httpx_retries import RetryTransport
 from sqlmodel import Session, select
 
-from .geometry import BoundingBox, MultiPolygon
+from .geometry import BoundingBox, LatLon, MultiPolygon
 from .models import CachedArea, Run, RunLocation, RunLocationWithBoundary
 from .utils import ProgressProtocol
 
@@ -43,11 +43,18 @@ class OverpassClient(httpx.Client):
 
             polys = []
             if element["type"] == "way" and "geometry" in element:
-                polys.append([(node["lat"], node["lon"]) for node in element["geometry"]])
+                polys.append(
+                    [LatLon(lat=node["lat"], lon=node["lon"]) for node in element["geometry"]]
+                )
             elif element["type"] == "relation" and "members" in element:
                 for member in element["members"]:
                     if member.get("role") == "outer" and "geometry" in member:
-                        polys.append([(node["lat"], node["lon"]) for node in member["geometry"]])
+                        polys.append(
+                            [
+                                LatLon(lat=node["lat"], lon=node["lon"])
+                                for node in member["geometry"]
+                            ]
+                        )
 
             boundary = MultiPolygon([p for p in polys if len(p) > 2])
             if boundary.polygons:
@@ -72,10 +79,15 @@ def sync_locations(
     # Load the bounding boxes previously searched
     cached_areas = [BoundingBox.from_wkt(ca.bbox_text) for ca in db.exec(select(CachedArea)).all()]
     for run in runs:
+        positions = [
+            LatLon(lat=tp.lat_deg, lon=tp.lon_deg)
+            for tp in run.track_points
+            if tp.lat_deg and tp.lon_deg
+        ]
         # Is any point in the run outside these areas?
         all_contained = len(cached_areas) > 0
-        for tp in run.track_points:
-            if not any(box.contains(tp.lat_deg, tp.lon_deg) for box in cached_areas):
+        for p in positions:
+            if not any(box.contains(p) for box in cached_areas):
                 all_contained = False
                 break
 
@@ -83,8 +95,8 @@ def sync_locations(
             # Get the run's quantized bounding box
             # TODO: This will have problems if a run crosses the international date line :-/
             lats, lons = (
-                [tp.lat_deg for tp in run.track_points],
-                [tp.lon_deg for tp in run.track_points],
+                [p.lat for p in positions],
+                [p.lon for p in positions],
             )
             search_bbox = BoundingBox(
                 min_lat=math.floor(min(lats) / GRID_SIZE) * GRID_SIZE,
@@ -116,7 +128,7 @@ def sync_locations(
         ]
 
         possible_locations: list[RunLocationWithBoundary] = []
-        run_bbox = BoundingBox.from_points([(tp.lat_deg, tp.lon_deg) for tp in run.track_points])
+        run_bbox = BoundingBox.from_points(positions)
 
         for rl in run_locations:
             points = [p for poly in rl.boundary.polygons for p in poly]
@@ -127,10 +139,9 @@ def sync_locations(
         if len(possible_locations) == 1:
             run.location_id = possible_locations[0].osm_id
         elif len(possible_locations) > 1:
-            trackpoints = [(tp.lat_deg, tp.lon_deg) for tp in run.track_points]
             location = max(
                 possible_locations,
-                key=lambda loc: loc.boundary.count_points_inside(trackpoints),
+                key=lambda loc: loc.boundary.count_points_inside(positions),
             )
             run.location_id = location.osm_id
         else:
