@@ -6,7 +6,9 @@ def get_subel_text(el: ET.Element, name: str) -> str | None:
     return text or None
 
 
-FILENAME = "../tcx/2026-08-10.tcx"
+FILENAME = "../tcx/1119963355120964920.tcx"
+# FILENAME = "../tcx/7189662828809116472.tcx"
+FILENAME = "../tcx/4934410547619668136.tcx"
 
 ns = {"tcx": "http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2"}
 
