@@ -13,24 +13,24 @@ export const router = createRouter({
         {
             path: "/goal/:id",
             component: GoalPage,
-            beforeEnter: async (to, _, next) => {
+            beforeEnter: async (to, _) => {
                 const session = useSession();
-                if (session.goals.find((g) => g.id == to.params.id)) next();
-                else next({ name: "404" });
+                if (session.goals.find((g) => g.id == to.params.id)) return;
+                else return { name: "404" };
             },
         },
         {
             path: "/run/:id",
             component: RunPage,
-            beforeEnter: async (to, _, next) => {
+            beforeEnter: async (to, _) => {
                 const session = useSession();
                 if (
                     session.runs
                         .concat(Object.values(session.notableRuns?.runs ?? {}))
                         .find((r) => r.id == to.params.id)
                 )
-                    next();
-                else next({ name: "404" });
+                    return;
+                else return { name: "404" };
             },
         },
 

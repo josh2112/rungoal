@@ -85,10 +85,7 @@ const redToGreen = tinygradient([
             </div>
             <div class="text-end">
                 <div>{{ durationFormatter(run.average_pace) }} min/{{ stats.distAbbr }}</div>
-
-                <div>
-                    {{ durationFormatter(run.active_duration) }}
-                </div>
+                <div>{{ durationFormatter(run.active_duration) }}</div>
                 <div class="mt-1" v-if="run.calories">{{ run.calories }} cal</div>
             </div>
         </div>

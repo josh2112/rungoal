@@ -19,7 +19,7 @@ export const durationFormatter = (duration: Temporal.Duration) => {
     if (duration.hours == 0) {
         return `${duration.minutes}:${paddedSeconds}`;
     } else {
-        `${duration.hours}:${String(duration.seconds).padStart(2, "0")}:${paddedSeconds}`;
+        return `${duration.hours}:${String(duration.seconds).padStart(2, "0")}:${paddedSeconds}`;
     }
 };
 

@@ -71,7 +71,7 @@ const isDark = useDark();
                             />
                         </div>
                         <i
-                            v-if="run.device_type == 'WATCH'"
+                            v-if="stats.deviceTypeIcon"
                             class="bi me-3 text-primary-emphasis"
                             :class="stats.deviceTypeIcon"
                         ></i>
@@ -84,10 +84,7 @@ const isDark = useDark();
                 </div>
                 <div class="text-end">
                     <div>{{ durationFormatter(run.average_pace) }} min/{{ stats.distAbbr }}</div>
-
-                    <div>
-                        {{ durationFormatter(run.active_duration) }}
-                    </div>
+                    <div>{{ durationFormatter(run.active_duration) }}</div>
                     <div class="mt-1" v-if="run.calories">{{ run.calories }} cal</div>
                 </div>
             </div>
