@@ -44,10 +44,58 @@ def calc_split_stats(db: Session, run_id: int, split_secs: int) -> list[RunSplit
         select(TrackPoint).where(TrackPoint.run_id == run_id).order_by(col(TrackPoint.elapsed_secs))
     ).all()
 
+    if not trackpoints:
+        return []
+
     # Detach trackpoint instances from the DB. When we extrapolate values later, we don't want to commit those changes
     # back!
     for tp in trackpoints:
         db.expunge(tp)
+
+    groups = []
+    group = [trackpoints[0]]
+    for i in range(1, len(trackpoints)):
+        if trackpoints[i].elapsed_secs - trackpoints[i - 1].elapsed_secs > 5 and group:
+            groups.append(group)
+            group = []
+        group.append(trackpoints[i])
+    if group:
+        groups.append(group)
+
+    # for g in groups:
+    #    print(f"{g[0].elapsed_secs} -> {g[-1].elapsed_secs}")
+
+    # Interpolate heart rate, distance and altitude, skipping over null endpoints
+    for group in groups:
+        last_hr, last_dist = -1, -1
+        for i, tp in enumerate(group):
+            if tp.heart_rate_bpm:
+                if i - last_hr > 1 and last_hr >= 0:
+                    gap_size = i - last_hr
+                    start = cast(int, group[last_hr].heart_rate_bpm)
+                    delta = cast(int, tp.heart_rate_bpm) - start
+                    for j in range(last_hr + 1, i):
+                        group[j].heart_rate_bpm = round(start + (j - last_hr) / gap_size * delta)
+                last_hr = i
+            if tp.distance_meters:
+                if i - last_dist > 1 and last_dist >= 0:
+                    # Since distance and altitude are always recorded together, interpolate them together.
+                    gap_size = i - last_dist
+                    start_dist = cast(int, group[last_dist].distance_meters)
+                    delta_dist = cast(int, tp.distance_meters) - start_dist
+                    start_alt = cast(int, group[last_dist].alt_meters)
+                    delta_alt = cast(int, tp.alt_meters) - start_alt
+                    for j in range(last_dist + 1, i):
+                        group[j].distance_meters = round(
+                            start_dist + (j - last_dist) / gap_size * delta_dist
+                        )
+                        group[j].alt_meters = round(
+                            start_alt + (j - last_dist) / gap_size * delta_alt
+                        )
+
+                last_dist = i
+
+    trackpoints = [tp for group in groups for tp in group]
 
     # Flag gaps of size N or larger in distance or heart rate by marking them in is_gap
     is_gap = [False] * len(trackpoints)
@@ -73,63 +121,26 @@ def calc_split_stats(db: Session, run_id: int, split_secs: int) -> list[RunSplit
     if group:
         groups.append(group)
 
-    interpolated_groups = []
+    # For each group, trim the end nulls, then break it into splits of around [split_secs] seconds each. Avoid small
+    # splits (< 1 min) by appending them to the previous split.
+    split_groups: list[list[TrackPoint]] = []
     for group in groups:
         group = _trim_boundary_nulls(
             group, [(tp.distance_meters, tp.heart_rate_bpm) for tp in group]
         )
 
-        if len(group) < 30:
-            # This split is not large enough to consider
-            continue
-
-        last_hr, last_dist = 0, 0
-        for i, tp in enumerate(group):
-            if tp.heart_rate_bpm:
-                if i - last_hr > 1:
-                    gap_size = i - last_hr
-                    start = cast(int, group[last_hr].heart_rate_bpm)
-                    delta = cast(int, tp.heart_rate_bpm) - start
-                    for j in range(last_hr + 1, i):
-                        group[j].heart_rate_bpm = round(start + (j - last_hr) / gap_size * delta)
-                last_hr = i
-            if tp.distance_meters:
-                if i - last_dist > 1:
-                    # Since distance and altitude are always recorded together, interpolate them together.
-                    gap_size = i - last_dist
-                    start_dist = cast(int, group[last_dist].distance_meters)
-                    delta_dist = cast(int, tp.distance_meters) - start_dist
-                    start_alt = cast(int, group[last_dist].alt_meters)
-                    delta_alt = cast(int, tp.alt_meters) - start_alt
-                    for j in range(last_dist + 1, i):
-                        group[j].distance_meters = round(
-                            start_dist + (j - last_dist) / gap_size * delta_dist
-                        )
-                        group[j].alt_meters = round(
-                            start_alt + (j - last_dist) / gap_size * delta_alt
-                        )
-
-                last_dist = i
-
-        interpolated_groups.append(group)
-
-    # Break the active periods into splits of around [split_secs] seconds each. Avoid small splits (< 1 min) by
-    # appending them to the previous split.
-    split_groups: list[list[TrackPoint]] = []
-    for g in interpolated_groups:
-        # Avoid small splits (< 1 min).
         i, i_prev = 0, 0
-        while i < len(g):
-            start = g[i].elapsed_secs
+        while i < len(group):
+            start = group[i].elapsed_secs
             i_prev = i
             i = next(
-                (i for i, tp in enumerate(g) if tp.elapsed_secs - start > split_secs),
-                len(g),
+                (i for i, tp in enumerate(group) if tp.elapsed_secs - start > split_secs),
+                len(group),
             )
             # If this would leave a small end split, just take the rest of the array
-            if i < len(g) and g[-1].elapsed_secs - g[i].elapsed_secs < 60:
-                i = len(g)
-            split_groups.append(g[i_prev:i])
+            if i < len(group) and group[-1].elapsed_secs - group[i].elapsed_secs < 60:
+                i = len(group)
+            split_groups.append(group[i_prev:i])
 
     split_stats: list[RunSplitStats] = []
 
