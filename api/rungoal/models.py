@@ -36,6 +36,16 @@ class UTCDateTime(sa.types.TypeDecorator):
         return value
 
 
+class DistanceUnit(StrEnum):
+    meters = "meters"
+    miles = "miles"
+
+
+class TemperatureUnit(StrEnum):
+    celsius = "celsius"
+    fahrenheit = "fahrenheit"
+
+
 # ========= Auth ========
 
 
@@ -48,6 +58,11 @@ class AccessToken(BaseModel):
 
 
 # ========= DB ========
+
+# TODO:
+
+distance_unit: DistanceUnit | None = Field(sa_column=sa.Column(SQLEnum(DistanceUnit)))
+temperature_unit: TemperatureUnit | None = Field(sa_column=sa.Column(SQLEnum(TemperatureUnit)))
 
 
 class UserBase(SQLModel):

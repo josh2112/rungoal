@@ -14,11 +14,13 @@ from sqlmodel import Session
 
 from .models import (
     DeviceType,
+    DistanceUnit,
     RecordingMethod,
     RecordingPlatform,
     Run,
     RunDataSource,
     RunFetchContext,
+    TemperatureUnit,
     TrackPoint,
     User,
 )
@@ -153,6 +155,27 @@ class GoogleHealthClient(httpx.Client):
             )
 
         return trackpoints
+
+    def update_user_settings(self):
+        response = self.get("settings")
+        response.raise_for_status()
+        content = response.json()
+
+        match content["distanceUnit"]:
+            case "DISTANCE_UNIT_MILES":
+                self.user.distance_unit = DistanceUnit.miles
+            case "DISTANCE_UNIT_KILOMETERS":
+                self.user.distance_unit = DistanceUnit.meters
+            case _:
+                self.user.distance_unit = None
+
+        match content["temperatureUnit"]:
+            case "TEMPERATURE_UNIT_CELSIUS":
+                self.user.temperature_unit = TemperatureUnit.celsius
+            case "TEMPERATURE_UNIT_FAHRENHEIT":
+                self.user.temperature_unit = TemperatureUnit.fahrenheit
+            case _:
+                self.user.temperature_unit = None
 
     def _run_from_data_point(self, dp: dict, output: Path | None = None) -> Run:
         data_source_id = dp["name"].split("/")[-1]

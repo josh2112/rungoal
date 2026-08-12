@@ -270,9 +270,8 @@ def cmd_init_db(
         ),
     ] = False,
 ):
-    from alembic.config import Config
-
     from alembic import command
+    from alembic.config import Config
 
     alembic_config = Config("alembic.ini")
 
@@ -299,6 +298,14 @@ def reset_user(user_id: int):
         user.is_onboarded = False
         db.add(user)
         db.commit()
+
+
+@app.command("try-settings")
+def cmd_try_settings(user_id: int):
+    with get_db() as db:
+        user = get_user(db, 1)
+        with GoogleHealthClient(user, db) as client:
+            client.update_user_settings()
 
 
 if __name__ == "__main__":

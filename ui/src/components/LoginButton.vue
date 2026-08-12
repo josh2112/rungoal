@@ -7,6 +7,7 @@ const scopes = [
     "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly",
     "https://www.googleapis.com/auth/googlehealth.location.readonly",
     "https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly",
+    "https://www.googleapis.com/auth/googlehealth.settings.readonly",
 ];
 
 const api = useApi();
@@ -31,7 +32,8 @@ const { login, isReady } = useCodeClient({
 
 <template>
     <div v-if="!session.user">
-        <button type="button" class="btn btn-primary" :disabled="!isReady" @click="() => login()">Login with Google
-            Health</button>
+        <button type="button" class="btn btn-primary" :disabled="!isReady" @click="() => login()">
+            Login with Google Health
+        </button>
     </div>
 </template>
