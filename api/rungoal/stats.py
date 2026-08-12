@@ -9,6 +9,36 @@ class StatsCalcException(Exception):
     pass
 
 
+N = 5
+
+
+def _identify_gaps(is_gap: list[bool], values: list[float | int | None]):
+    # Mark is_gap[x] = True for any gap of size N or larger values
+    gap_start, gap_count = 0, 0
+    for i, v in enumerate(values):
+        if v is None:
+            if not gap_count:
+                gap_start = i
+            gap_count += 1
+        else:
+            if gap_count >= N:
+                for j in range(gap_start, i):
+                    is_gap[j] = True
+            gap_count = 0
+
+    if gap_count >= N:
+        for j in range(gap_start, len(values)):
+            is_gap[j] = True
+
+
+def _trim_boundary_nulls(group: list[TrackPoint], values: list[tuple[float | int | None, ...]]):
+    first_idx = next(i for i, v in enumerate(values) if all(x is not None for x in v))
+    last_idx = len(values) - next(
+        i for i, v in enumerate(reversed(values)) if all(x is not None for x in v)
+    )
+    return group[first_idx:last_idx]
+
+
 def calc_split_stats(db: Session, run_id: int, split_secs: int) -> list[RunSplitStats]:
     trackpoints = db.exec(
         select(TrackPoint).where(TrackPoint.run_id == run_id).order_by(col(TrackPoint.elapsed_secs))
@@ -19,69 +49,74 @@ def calc_split_stats(db: Session, run_id: int, split_secs: int) -> list[RunSplit
     for tp in trackpoints:
         db.expunge(tp)
 
-    # First, characterize heart rate data. Either it will all be missing, or there will be gaps of no more than
-    # 1 to 2 trackpoints which we can easily interpolate (heart rate continues to be tracked during a pause
-    # apparently). If all missing, return immediately.
-    # ** If we see a gap of more than 2, Fitbit has changed something again -- throw an exception so we can look at
-    # it later.
-    last_hr, largest_gap = -1, 0
+    # Flag gaps of size N or larger in distance or heart rate by marking them in is_gap
+    is_gap = [False] * len(trackpoints)
+    _identify_gaps(is_gap, [tp.distance_meters for tp in trackpoints])
+    _identify_gaps(is_gap, [tp.heart_rate_bpm for tp in trackpoints])
+
+    groups: list[list[TrackPoint]] = []
+    group: list[TrackPoint] = []
+
     for i, tp in enumerate(trackpoints):
-        if tp.heart_rate_bpm:
-            if i - last_hr - 1 > 0:
-                largest_gap = max(largest_gap, i - last_hr - 1)
-            last_hr = i
-
-    if last_hr == -1:
-        return []
-    elif largest_gap > 2:
-        raise StatsCalcException("Gap of 3 or larger found in heart rate tracking!")
-
-    # Next, we need to separate pauses from data hiccups by looking at distances (distance and altitude gaps always
-    # go together). Gaps have been seen with sizes varying from 1 TP to 160 or more. If the gap is more than 5 TP
-    # (about 10 seconds since data collection slows to once every 2 seconds during an auto-pause), start a new group;
-    # we don't want stat splits extending over a pause.
-
-    active_groups: list[list[TrackPoint]] = []
-    group = []
-    last_dist = -1
-    for i, tp in enumerate(trackpoints):
-        if tp.distance_meters:
-            if i - last_dist - 1 > 5:
-                active_groups.append(group)
+        if is_gap[i]:
+            if group:
+                groups.append(group)
                 group = []
-            group.append(tp)
-            last_dist = i
-    active_groups.append(group)
+            continue
 
-    # Elminate groups of 30 or less trackpoints between pauses. We were probably still stationary but GPS location
-    # drifted.
-    active_groups = [g for g in active_groups if len(g) > 30]
+        if group and tp.elapsed_secs - group[-1].elapsed_secs - 1 > N:
+            groups.append(group)
+            group = []
 
-    # Next, extrapolate heart rates
-    for group in active_groups:
-        # The first and last few heart rates in this group may in fact be null. If so, set then to the first and last
-        # valid heart rate.
-        group[0].heart_rate_bpm = next(tp.heart_rate_bpm for tp in group if tp.heart_rate_bpm)
-        group[-1].heart_rate_bpm = next(
-            tp.heart_rate_bpm for tp in reversed(group) if tp.heart_rate_bpm
+        group.append(tp)
+
+    if group:
+        groups.append(group)
+
+    interpolated_groups = []
+    for group in groups:
+        group = _trim_boundary_nulls(
+            group, [(tp.distance_meters, tp.heart_rate_bpm) for tp in group]
         )
-        last_hr = 0
+
+        if len(group) < 30:
+            # This split is not large enough to consider
+            continue
+
+        last_hr, last_dist = 0, 0
         for i, tp in enumerate(group):
             if tp.heart_rate_bpm:
                 if i - last_hr > 1:
-                    # We have a gap between last_dist[0]+1 and i-1.
                     gap_size = i - last_hr
                     start = cast(int, group[last_hr].heart_rate_bpm)
                     delta = cast(int, tp.heart_rate_bpm) - start
                     for j in range(last_hr + 1, i):
                         group[j].heart_rate_bpm = round(start + (j - last_hr) / gap_size * delta)
-
                 last_hr = i
+            if tp.distance_meters:
+                if i - last_dist > 1:
+                    # Since distance and altitude are always recorded together, interpolate them together.
+                    gap_size = i - last_dist
+                    start_dist = cast(int, group[last_dist].distance_meters)
+                    delta_dist = cast(int, tp.distance_meters) - start_dist
+                    start_alt = cast(int, group[last_dist].alt_meters)
+                    delta_alt = cast(int, tp.alt_meters) - start_alt
+                    for j in range(last_dist + 1, i):
+                        group[j].distance_meters = round(
+                            start_dist + (j - last_dist) / gap_size * delta_dist
+                        )
+                        group[j].alt_meters = round(
+                            start_alt + (j - last_dist) / gap_size * delta_alt
+                        )
+
+                last_dist = i
+
+        interpolated_groups.append(group)
 
     # Break the active periods into splits of around [split_secs] seconds each. Avoid small splits (< 1 min) by
     # appending them to the previous split.
     split_groups: list[list[TrackPoint]] = []
-    for g in active_groups:
+    for g in interpolated_groups:
         # Avoid small splits (< 1 min).
         i, i_prev = 0, 0
         while i < len(g):
@@ -98,6 +133,7 @@ def calc_split_stats(db: Session, run_id: int, split_secs: int) -> list[RunSplit
 
     split_stats: list[RunSplitStats] = []
 
+    # Now do the stats!
     for group in split_groups:
         gad_split, dist_split = 0, 0
         for i in range(1, len(group)):

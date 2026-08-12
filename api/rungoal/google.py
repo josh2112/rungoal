@@ -79,7 +79,9 @@ class GoogleHealthClient(httpx.Client):
         kwargs.setdefault("timeout", httpx.Timeout(10.0, connect=5.0))
         super().__init__(*args, **kwargs)
 
-    def fetch_runs(self, range_: TimeRange, time_zones_accounted_for: bool = False) -> list[Run]:
+    def fetch_runs(
+        self, range_: TimeRange, time_zones_accounted_for: bool = False, output: Path | None = None
+    ) -> list[Run]:
         field = "exercise.interval.civil_start_time"
 
         # civil_start_time is in local time. Since we don't know what time zone these potential runs are in,
@@ -97,16 +99,18 @@ class GoogleHealthClient(httpx.Client):
         response.raise_for_status()
 
         content = response.json()
-        return list(
-            map(
-                self._run_from_data_point,
-                [dp for dp in content["dataPoints"] if dp["exercise"]["exerciseType"] == "RUNNING"]
-                if "dataPoints" in content
-                else [],
-            )
+
+        return (
+            [
+                self._run_from_data_point(dp, output)
+                for dp in content["dataPoints"]
+                if dp["exercise"]["exerciseType"] == "RUNNING"
+            ]
+            if "dataPoints" in content
+            else []
         )
 
-    def fetch_tcx(self, run: RunFetchContext, output: Path | None) -> list[TrackPoint]:
+    def fetch_tcx(self, run: RunFetchContext, output: Path | None = None) -> list[TrackPoint]:
         response = self.get(
             f"dataTypes/exercise/dataPoints/{run.data_source_id}:exportExerciseTcx?alt=media",
         )
@@ -150,16 +154,21 @@ class GoogleHealthClient(httpx.Client):
 
         return trackpoints
 
-    def _run_from_data_point(self, dp: dict) -> Run:
+    def _run_from_data_point(self, dp: dict, output: Path | None = None) -> Run:
+        data_source_id = dp["name"].split("/")[-1]
         ex = dp["exercise"]
         metrics = ex["metricsSummary"]
         mobMet = metrics.get("mobilityMetrics", {})
         ds = dp["dataSource"]
 
+        if output:
+            with open((output / data_source_id).with_suffix(".json"), "w") as f:
+                json.dump(dp, f, indent=True)
+
         return Run(
             user_id=self.user.id,
             data_source=RunDataSource.GOOGLE_HEALTH,
-            data_source_id=dp["name"].split("/")[-1],
+            data_source_id=data_source_id,
             start_time=datetime.fromisoformat(ex["interval"]["startTime"]),
             end_time=datetime.fromisoformat(ex["interval"]["endTime"]),
             utc_offset_seconds=int(ex["interval"]["startUtcOffset"][:-1]),

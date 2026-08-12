@@ -75,6 +75,13 @@ def cmd_sync_runs(
         typer.Option(dir_okay=False, exists=True, help="Sync runs from a Runtracker database"),
     ] = None,
     runtracker_tz: str | None = None,
+    output: Annotated[
+        Path | None,
+        typer.Option(
+            file_okay=False,
+            help="If provided, downloaded files will be saved in this directory.",
+        ),
+    ] = None,
     tcx: Annotated[bool, typer.Option(help="Sync TCX files")] = True,
     wx: Annotated[bool, typer.Option(help="Sync weather")] = True,
     loc: Annotated[bool, typer.Option(help="Sync run locations")] = True,
@@ -86,7 +93,7 @@ def cmd_sync_runs(
         user = get_user(db, user_id)
         with GoogleHealthClient(user, db) as client, CliProgress() as progress:
             zone = ZoneInfo(runtracker_tz) if runtracker_tz else None
-            sync_runs(client, progress, from_, to, runtracker_db_path, zone, tcx, wx, loc)
+            sync_runs(client, progress, from_, to, runtracker_db_path, zone, output, tcx, wx, loc)
 
 
 @app.command(
@@ -263,8 +270,9 @@ def cmd_init_db(
         ),
     ] = False,
 ):
-    from alembic import command
     from alembic.config import Config
+
+    from alembic import command
 
     alembic_config = Config("alembic.ini")
 

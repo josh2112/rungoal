@@ -61,6 +61,7 @@ def sync_runs(
     to: datetime | None = None,
     runtracker_db_path: Annotated[Path, typer.Argument(dir_okay=False, exists=True)] | None = None,
     runtracker_tz: ZoneInfo | None = None,
+    output: Path | None = None,
     do_trackpoints: bool = True,
     do_weather: bool = True,
     do_location: bool = True,
@@ -104,7 +105,7 @@ def sync_runs(
     progress.start_task(task2, total=len(ranges))
 
     def _fetch(range_: TimeRange):
-        runs = client.fetch_runs(range_)
+        runs = client.fetch_runs(range_, output=output)
         progress.advance(task2)
         return runs
 
@@ -117,7 +118,7 @@ def sync_runs(
 
     updated_runs = _update_runs(client.db, runs, span)
     if do_trackpoints:
-        sync_tcx(client, progress, updated_runs)
+        sync_tcx(client, progress, updated_runs, output)
         sync_split_stats(client.db, progress, updated_runs)
     if do_weather:
         sync_wx(client.db, progress, updated_runs)
