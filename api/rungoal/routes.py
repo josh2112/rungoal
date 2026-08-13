@@ -1,7 +1,7 @@
 import asyncio
 from collections.abc import AsyncIterable, Callable, Sequence
 from datetime import UTC, datetime
-from typing import Annotated, Any, cast
+from typing import Annotated, Any
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Cookie, Query, Request, Response, status
@@ -12,6 +12,7 @@ from rungoal import auth, crud
 
 from .deps import DepDb, DepUser
 from .google import GoogleHealthClient
+from .heatmap import build_heatmap_tile
 from .models import (
     AccessToken,
     GoalCreate,
@@ -110,12 +111,12 @@ def get_user(user: DepUser):
 
 @api.get("/sync/status")
 def get_sync_status(user: DepUser) -> SyncState:
-    return sync_status(cast(int, user.id))
+    return sync_status(user.id)
 
 
 @api.get("/sync/stream", response_class=EventSourceResponse)
 async def get_sync_stream(user: DepUser) -> AsyncIterable[SyncState]:
-    async for p in sync_stream(cast(int, user.id)):
+    async for p in sync_stream(user.id):
         yield p
     await asyncio.sleep(0.2)  # Give the sync-complete message a chance to be sent
 
@@ -125,7 +126,7 @@ async def start_sync(user: DepUser, params: SyncRequest):
     params.from_ = datetime(2026, 7, 22, tzinfo=UTC)
     params.include_runtracker = False
     await sync_start(
-        cast(int, user.id),
+        user.id,
         params,
         ZoneInfo(user.timezone),
     )
@@ -134,35 +135,35 @@ async def start_sync(user: DepUser, params: SyncRequest):
 
 @api.get("/goals")
 def get_goals(db: DepDb, user: DepUser) -> list[GoalResponse]:
-    return crud.get_goals(db, cast(int, user.id), ZoneInfo(user.timezone))
+    return crud.get_goals(db, user.id, ZoneInfo(user.timezone))
 
 
 @api.post("/goals")
 def add_goal(db: DepDb, user: DepUser, goal: GoalCreate) -> list[GoalResponse]:
-    crud.create_goal(db, cast(int, user.id), goal)
+    crud.create_goal(db, user.id, goal)
     return get_goals(db, user)
 
 
 @api.patch("/goals/{goal_id}")
 def update_goal(db: DepDb, user: DepUser, goal_id: str, goal: GoalUpdate) -> list[GoalResponse]:
-    crud.update_goal(db, cast(int, user.id), sqids.decode(goal_id)[0], goal)
+    crud.update_goal(db, user.id, sqids.decode(goal_id)[0], goal)
     return get_goals(db, user)
 
 
 @api.delete("/goals/{goal_id}")
 def delete_goal(db: DepDb, user: DepUser, goal_id: str):
-    crud.delete_goal(db, cast(int, user.id), sqids.decode(goal_id)[0])
+    crud.delete_goal(db, user.id, sqids.decode(goal_id)[0])
     return status.HTTP_200_OK
 
 
 @api.get("/stats")
 def get_stats(db: DepDb, user: DepUser) -> StatsRanges:
-    return crud.get_stats(db, cast(int, user.id))
+    return crud.get_stats(db, user.id)
 
 
 @api.get("/runs/notable")
 def get_notable_runs(db: DepDb, user: DepUser) -> NotableRunsResponse:
-    runs_by_notable = crud.get_notable_runs(db, cast(int, user.id))
+    runs_by_notable = crud.get_notable_runs(db, user.id)
     return NotableRunsResponse(
         runs={n: RunResponse.model_validate(run) for n, run in runs_by_notable.items()}
     )
@@ -175,6 +176,10 @@ def get_runs(
     from_: Annotated[datetime, Query(alias="from")],
     to: datetime,
 ) -> Sequence[RunResponse]:
-    return [
-        RunResponse.model_validate(run) for run in crud.get_runs(db, cast(int, user.id), from_, to)
-    ]
+    return [RunResponse.model_validate(run) for run in crud.get_runs(db, user.id, from_, to)]
+
+
+@api.get("/heatmap/{z}/{x}/{y}.png")
+def get_heatmap_tile(db: DepDb, user: DepUser, z: int, x: int, y: int):
+    buf = build_heatmap_tile(db, user, z, x, y)
+    return Response(content=buf, media_type="image/png")
