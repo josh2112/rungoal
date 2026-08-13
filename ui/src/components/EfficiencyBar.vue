@@ -23,9 +23,10 @@ const normalize = (v: number) =>
             v-for="split in splitStats"
             class="eff-sq"
             :style="{
-                backgroundColor: gradientRedToGreen
-                    .rgbAt(normalize(split.efficiency))
-                    .toHexString(),
+                backgroundColor:
+                    split.efficiency > 0
+                        ? gradientRedToGreen.rgbAt(normalize(split.efficiency)).toHexString()
+                        : 'transparent',
                 width: `${((split.end_secs - split.start_secs) / 300) * 10}px`,
             }"
         />

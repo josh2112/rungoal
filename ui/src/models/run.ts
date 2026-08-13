@@ -103,6 +103,8 @@ export interface RunStats {
     deviceTypeIcon?: string;
     normalizedSplitEfficiencies: number[];
     includeYearInDate: boolean;
+    avgEff?: number;
+    paddedSplitStats: RunSplitStats[];
 }
 
 const runName = (hour: number) => {
@@ -148,6 +150,31 @@ const deviceTypeIcon = (deviceType?: string) => {
 const currentYear = Temporal.Now.plainDateISO().year;
 
 export function toRunStats(run: Run, dist_unit: DistanceUnit): RunStats {
+    let avgEff: number | undefined = 0;
+    let totalSecs = 0;
+    let paddedSplitStats = [run.split_stats[0]];
+
+    for (let i = 1; i < run.split_stats.length; ++i) {
+        const split = run.split_stats[i];
+        const time = split.end_secs - split.start_secs;
+        totalSecs += time;
+        avgEff += split.efficiency * time;
+
+        const delta = split.start_secs - run.split_stats[i - 1].end_secs;
+        if (delta > 1) {
+            paddedSplitStats.push({
+                start_secs: run.split_stats[i - 1].end_secs + 1,
+                end_secs: split.start_secs - 1,
+                dist_meters: 0,
+                gad_meters: 0,
+                hr_avg: 0,
+                efficiency: -1,
+            } as RunSplitStats);
+        }
+        paddedSplitStats.push(split);
+    }
+    avgEff = totalSecs > 0 ? avgEff / totalSecs : undefined;
+
     return {
         run: run,
         distAbbr: distanceAbbr(dist_unit),
@@ -156,5 +183,7 @@ export function toRunStats(run: Run, dist_unit: DistanceUnit): RunStats {
         weatherIconColor: weatherIconColor(run.weather),
         deviceTypeIcon: deviceTypeIcon(run.device_type),
         includeYearInDate: run.start_time.year < currentYear,
+        paddedSplitStats,
+        avgEff,
     } as RunStats;
 }
