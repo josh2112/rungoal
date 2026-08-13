@@ -1,6 +1,6 @@
 [project]
 name = "Rungoal"
-version = "0.9.0"
+version = "0.9.5"
 description = "Rungoal syncs your runs from Google Health, tracks running goals, and gives you all kinds of interesting statistics."
 readme = "README.md"
 authors = [
