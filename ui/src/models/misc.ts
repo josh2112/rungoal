@@ -8,17 +8,25 @@ export interface ErrorResponse {
     source: string;
 }
 
-export interface User {
+export interface UserDTO {
     name: string;
     email: string;
     avatar_uri: string;
     is_onboarded: boolean;
+    distance_unit?: DistanceUnit;
+    temperature_unit?: TemperatureUnit;
 }
 
-export interface Settings {
+export interface User extends Omit<UserDTO, "distance_unit" | "temperature_unit"> {
     distance_unit: DistanceUnit;
     temperature_unit: TemperatureUnit;
 }
+
+export const toUser = (dto: UserDTO): User => ({
+    ...dto,
+    distance_unit: dto.distance_unit ?? "kilometers",
+    temperature_unit: dto.temperature_unit ?? "celsius",
+});
 
 export interface SyncParams {
     from?: string;

@@ -17,7 +17,7 @@ const editGoalDialogRef = ref<InstanceType<typeof GoalDialog>>();
 const removeGoalDialogRef = ref<InstanceType<typeof ConfirmationDialog>>();
 
 const goal = computed(() => session.goals.find((g) => g.id == route.params.id)!);
-const stats = computed(() => toGoalStats(goal.value, session.settings));
+const stats = computed(() => toGoalStats(goal.value, session.user!.distance_unit));
 
 const progress = computed(
     () => (stats.value.goal.current_distance_meters / stats.value.goal.distance_meters) * 100,

@@ -23,6 +23,8 @@ const isUpdate = computed(() => "id" in goal.value);
 
 const session = useSession();
 
+const distanceUnit = computed(() => session.user?.distance_unit ?? "kilometers");
+
 const dialogRef = ref<Element>();
 const { open, close } = useDialog(dialogRef);
 defineExpose({ open });
@@ -69,22 +71,11 @@ const endDate = computed({
 const distance = computed({
     get() {
         return Number(
-            formatDec(
-                distanceConvert(
-                    goal.value.distance_meters,
-                    "meters",
-                    session.settings.distance_unit,
-                ),
-                1,
-            ),
+            formatDec(distanceConvert(goal.value.distance_meters, "meters", distanceUnit.value), 1),
         );
     },
     set(value) {
-        goal.value.distance_meters = distanceConvert(
-            value,
-            session.settings.distance_unit,
-            "meters",
-        );
+        goal.value.distance_meters = distanceConvert(value, distanceUnit.value, "meters");
     },
 });
 
@@ -180,9 +171,7 @@ const onRadioChanged = () => {
                                 v-model.number="distance"
                             />
                             <label for="distance"
-                                >Distance ({{
-                                    distanceAbbr(session.settings.distance_unit)
-                                }})</label
+                                >Distance ({{ distanceAbbr(distanceUnit) }})</label
                             >
                             <span class="input-group-text"
                                 >{{
@@ -192,13 +181,13 @@ const onRadioChanged = () => {
                                             distanceConvert(
                                                 goal.distance_meters / durationDays,
                                                 "meters",
-                                                session.settings.distance_unit,
+                                                distanceUnit,
                                             ),
                                         ),
                                         2,
                                     )
                                 }}
-                                {{ distanceAbbr(session.settings.distance_unit) }}/day</span
+                                {{ distanceAbbr(distanceUnit) }}/day</span
                             >
                         </div>
 

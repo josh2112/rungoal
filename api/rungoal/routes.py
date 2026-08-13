@@ -11,6 +11,7 @@ from jose import JWTError
 from rungoal import auth, crud
 
 from .deps import DepDb, DepUser
+from .google import GoogleHealthClient
 from .models import (
     AccessToken,
     GoalCreate,
@@ -21,7 +22,6 @@ from .models import (
     RunResponse,
     StatsRanges,
     SyncRequest,
-    User,
     UserResponse,
     sqids,
 )
@@ -61,15 +61,19 @@ def google_auth(
     db: DepDb, request: Request, response: Response, auth_code: GoogleApiAuthCode
 ) -> AccessToken:
     # Get full user info with Google API tokens
-    # TODO: Can this be async?
     google_user = auth.get_google_user(auth_code)
     user = crud.get_user_by_email(db, google_user.email)
     if user:
-        # Update the existing user with the latest data (keeping the existing ID)
-        db.merge(User(id=user.id, is_onboarded=user.is_onboarded, **google_user.model_dump()))
-        db.commit()
+        # Update the existing user with anything new from Google
+        user.sqlmodel_update(google_user.model_dump())
     else:
         user = crud.create_user(db, google_user)
+
+    # Update with user settings from Fitbit
+    with GoogleHealthClient(user, db) as client:
+        client.update_user_settings()
+
+    db.commit()
 
     return _set_tokens(user.email, request.headers.get("X-Timezone", "UTC"), response)
 

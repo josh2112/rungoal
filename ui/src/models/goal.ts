@@ -1,6 +1,5 @@
 import { Temporal } from "temporal-polyfill";
-import { distanceAbbr, distanceConvert } from "../utils";
-import type { Settings } from "./misc";
+import { distanceAbbr, distanceConvert, type DistanceUnit } from "../utils";
 
 // need to think about this.
 // goal creation needs: start/end date (set as temporal, converted to string), distance
@@ -58,16 +57,16 @@ export const toGoal = (dto: GoalDTO): Goal => ({
     end_date: Temporal.PlainDate.from(dto.end_date),
 });
 
-export function toGoalStats(goal: Goal, settings: Settings): GoalStats {
+export function toGoalStats(goal: Goal, dist_unit: DistanceUnit): GoalStats {
     const today = Temporal.Now.plainDateISO();
     const daysTotal = goal.start_date.until(goal.end_date).days + 1;
     const daysRemaining = today.until(goal.end_date).days;
 
-    const distance = (v: number) => distanceConvert(v, "meters", settings.distance_unit);
+    const distance = (v: number) => distanceConvert(v, "meters", dist_unit);
 
     return {
         goal: goal,
-        dist_abbr: distanceAbbr(settings.distance_unit),
+        dist_abbr: distanceAbbr(dist_unit),
 
         total_dist: distance(goal.distance_meters),
         current_dist: distance(goal.current_distance_meters),

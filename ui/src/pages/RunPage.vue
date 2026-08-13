@@ -18,7 +18,7 @@ const run = computed(
             .find((r) => r.id == route.params.id)!,
 );
 
-const stats = computed(() => toRunStats(run.value, session.settings));
+const stats = computed(() => toRunStats(run.value, session.user!.distance_unit));
 
 onMounted(() => (navbarState.title = stats.value.name));
 </script>

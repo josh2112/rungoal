@@ -24,6 +24,7 @@ _GOOGLE_API_SCOPES = [
     "https://www.googleapis.com/auth/userinfo.profile",
     "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly",
     "https://www.googleapis.com/auth/googlehealth.location.readonly",
+    "https://www.googleapis.com/auth/googlehealth.settings.readonly",
     "https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly",
 ]
 
@@ -133,6 +134,8 @@ def get_google_user(auth: GoogleApiAuthCode) -> UserWithGoogleCreds:
         avatar_uri=avatar_uri,
         google_api_access_token=flow.credentials.token,
         google_api_refresh_token=flow.credentials.refresh_token,
+        distance_unit=None,
+        temperature_unit=None,
     )
 
 

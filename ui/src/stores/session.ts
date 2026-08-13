@@ -6,8 +6,8 @@ import { syncSizeInDays } from "../consts";
 import { toGoal, type Goal, type GoalCreate, type GoalDTO, type GoalUpdate } from "../models/goal";
 import {
     toSyncState,
+    toUser,
     type ErrorResponse,
-    type Settings,
     type SyncParams,
     type SyncState,
     type User,
@@ -21,7 +21,6 @@ export const useSession = defineStore("session", () => {
     const api = useApi();
 
     const user = ref<User>();
-    const settings = ref<Settings>({ distance_unit: "miles", temperature_unit: "fahrenheit" }); // TODO: distance unit from Google Health settings?
     const syncState = ref<SyncState>();
     const lastSynced = ref<number>();
 
@@ -53,7 +52,9 @@ export const useSession = defineStore("session", () => {
     }
 
     async function getMe() {
-        user.value = (await api.get("/user/me")).data as User;
+        user.value = toUser((await api.get("/user/me")).data);
+        console.log("DISTANCE:", user.value.distance_unit);
+        console.log("TMEP:", user.value.temperature_unit);
 
         await updateSyncState();
 
@@ -156,7 +157,7 @@ export const useSession = defineStore("session", () => {
     async function getNotableRuns() {
         notableRuns.value = toNotableRuns(
             (await api.get("/runs/notable")).data,
-            settings.value.distance_unit,
+            user.value!.distance_unit,
         );
     }
 
@@ -208,7 +209,7 @@ export const useSession = defineStore("session", () => {
                     },
                 })
             ).data as []
-        ).map((r) => toRun(r, settings.value.distance_unit));
+        ).map((r) => toRun(r, user.value!.distance_unit));
 
         const gotRuns = newRuns.length > 0;
 
@@ -245,7 +246,6 @@ export const useSession = defineStore("session", () => {
 
     return {
         user,
-        settings,
         runs,
         goals,
         notableRuns,

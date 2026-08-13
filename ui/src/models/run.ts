@@ -6,7 +6,6 @@ import {
     type DistanceUnit,
     type Range,
 } from "../utils";
-import type { Settings } from "./misc";
 
 export interface Weather {
     temp_c?: number;
@@ -148,10 +147,10 @@ const deviceTypeIcon = (deviceType?: string) => {
 
 const currentYear = Temporal.Now.plainDateISO().year;
 
-export function toRunStats(run: Run, settings: Settings): RunStats {
+export function toRunStats(run: Run, dist_unit: DistanceUnit): RunStats {
     return {
         run: run,
-        distAbbr: distanceAbbr(settings.distance_unit),
+        distAbbr: distanceAbbr(dist_unit),
         name: runName(run.start_time.hour),
         weatherIcon: weatherIcon(run.weather),
         weatherIconColor: weatherIconColor(run.weather),

@@ -59,25 +59,19 @@ class AccessToken(BaseModel):
 
 # ========= DB ========
 
-# TODO:
 
-distance_unit: DistanceUnit | None = Field(sa_column=sa.Column(SQLEnum(DistanceUnit)))
-temperature_unit: TemperatureUnit | None = Field(sa_column=sa.Column(SQLEnum(TemperatureUnit)))
-
-
-class UserBase(SQLModel):
+class UserWithGoogleCreds(SQLModel):
     name: str
     email: EmailStr = Field(index=True, unique=True, sa_type=AutoString)
     avatar_uri: str
-
-
-class UserWithGoogleCreds(UserBase):
     google_api_access_token: str
     google_api_refresh_token: str = Field(
         sa_column=sa.Column(
             EncryptedType(sa.Unicode, settings.GOOGLE_REFRESH_TOKEN_KEY, AesEngine, "pkcs5")
         )
     )
+    distance_unit: DistanceUnit | None = Field(sa_column=sa.Column(SQLEnum(DistanceUnit)))
+    temperature_unit: TemperatureUnit | None = Field(sa_column=sa.Column(SQLEnum(TemperatureUnit)))
 
 
 class UserResponse(UserWithGoogleCreds):
@@ -91,8 +85,6 @@ class UserResponse(UserWithGoogleCreds):
 
 class User(UserResponse, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    runs: list["Run"] = Relationship(back_populates="user", cascade_delete=True)
-    goals: list["Goal"] = Relationship(back_populates="user", cascade_delete=True)
 
 
 class RequestUser(UserResponse):
@@ -206,7 +198,6 @@ class Run(RunBase, table=True):
     update_time: datetime = Field(sa_column=sa.Column(UTCDateTime(timezone=True)))
 
     user_id: int | None = Field(index=True, default=None, foreign_key="user.id", ondelete="CASCADE")
-    user: User | None = Relationship(back_populates="runs")
 
     data_source: RunDataSource = Field(sa_column=sa.Column(SQLEnum(RunDataSource), nullable=False))
     data_source_id: str
@@ -340,7 +331,6 @@ class Goal(GoalCreate, table=True):
     id: int = Field(default=None, primary_key=True)
 
     user_id: int | None = Field(default=None, foreign_key="user.id", ondelete="CASCADE")
-    user: User | None = Relationship(back_populates="goals")
 
 
 class Error(BaseModel):

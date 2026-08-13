@@ -12,7 +12,7 @@ const props = defineProps<{
 
 const session = useSession();
 
-const stats = computed(() => toRunStats(props.run, session.settings));
+const stats = computed(() => toRunStats(props.run, session.user!.distance_unit));
 
 const isDark = useDark();
 </script>
@@ -77,7 +77,7 @@ const isDark = useDark();
                                     temperatureConvert(
                                         stats.run.weather.temp_c,
                                         "celsius",
-                                        session.settings.temperature_unit,
+                                        session.user!.temperature_unit,
                                     ),
                                     0,
                                 )

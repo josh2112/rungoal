@@ -20,10 +20,10 @@ onMounted(() => {
     navbarState.actions = [];
 });
 
-const distAbbr = distanceAbbr(session.settings.distance_unit);
+const distAbbr = distanceAbbr(session.user!.distance_unit);
 
 const tempStr = (wx?: Weather) => {
-    const unit = session.settings.temperature_unit;
+    const unit = session.user!.temperature_unit;
     const abbr = temperatureAbbr(unit);
     const temp = wx?.temp_c
         ? Math.round(temperatureConvert(wx.temp_c, "celsius", unit))

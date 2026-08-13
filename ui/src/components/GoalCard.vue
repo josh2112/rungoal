@@ -12,7 +12,7 @@ const props = defineProps<{
 const isDark = useDark();
 
 const session = useSession();
-const stats = computed(() => toGoalStats(props.goal, session.settings));
+const stats = computed(() => toGoalStats(props.goal, session.user!.distance_unit));
 
 const progress = computed(
     () => (stats.value.goal.current_distance_meters / stats.value.goal.distance_meters) * 100,
