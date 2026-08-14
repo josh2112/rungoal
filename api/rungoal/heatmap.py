@@ -5,13 +5,9 @@ from typing import cast
 
 import mercantile
 from PIL import Image, ImageDraw
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from .models import RequestUser, Run, TrackPoint
-
-HOME = 35.186226, -80.612127
-
-RECT = (35.2, -80.7, 35.1, -80.6)
 
 _trackpoint_cache: dict[int, Sequence[tuple[float, float]]] = {}
 
@@ -32,15 +28,14 @@ async def _get_user_trackpoints_cached(user_id: int, db: Session) -> Sequence[tu
         if user_id in _trackpoint_cache:
             return _trackpoint_cache[user_id]
 
-        print("Caching trackpoints for user", user_id)
         _trackpoint_cache[user_id] = cast(
             Sequence[tuple[float, float]],
             await asyncio.to_thread(
                 lambda: db.exec(
                     select(TrackPoint.lat_deg, TrackPoint.lon_deg)
                     .join(Run, isouter=True)
-                    .where(TrackPoint.lat_deg != None)
-                    .where(TrackPoint.lon_deg != None)
+                    .where(col(TrackPoint.lat_deg).is_not(None))
+                    .where(col(TrackPoint.lon_deg).is_not(None))
                     .where(Run.user_id == user_id)
                 ).all()
             ),
@@ -64,11 +59,10 @@ async def build_heatmap_tile(db: Session, user: RequestUser, z: int, x: int, y: 
     )
 
     for lat, lon in trackpoints:
-        px = (lon - bbox.west) * bbox_w_factor
-        py = img.height - (lat - bbox.south) * bbox_h_factor
-
-        if 0 <= px < 256 and 0 <= py < 256:
-            draw.circle((int(px), int(py)), 6, (255, 0, 0, 255))
+        if bbox.west <= lon <= bbox.east and bbox.south <= lat <= bbox.north:
+            px = (lon - bbox.west) * bbox_w_factor
+            py = img.height - (lat - bbox.south) * bbox_h_factor
+            draw.circle((px, py), 6, (255, 0, 0, 255))
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")

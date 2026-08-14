@@ -61,6 +61,8 @@ useMutationObserver(
     <OnboardingDialog ref="onboardingGoalDialogRef" />
 
     <main>
+        <img href="12/1130/1620"/>
+        
         <RouterView />
     </main>
 

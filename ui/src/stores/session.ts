@@ -4,14 +4,7 @@ import { Temporal } from "temporal-polyfill";
 import { onMounted, ref } from "vue";
 import { syncSizeInDays } from "../consts";
 import { toGoal, type Goal, type GoalCreate, type GoalDTO, type GoalUpdate } from "../models/goal";
-import {
-    toSyncState,
-    toUser,
-    type ErrorResponse,
-    type SyncParams,
-    type SyncState,
-    type User,
-} from "../models/misc";
+import { toSyncState, toUser, type ErrorResponse, type SyncParams, type SyncState, type User } from "../models/misc";
 import { toNotableRuns, toRun, type NotableRuns, type Run, type StatsRanges } from "../models/run";
 import { useApi } from "./api";
 
@@ -61,10 +54,7 @@ export const useSession = defineStore("session", () => {
         if (user.value!.is_onboarded) {
             await getGoals();
 
-            if (
-                syncState.value?.is_syncing === false &&
-                (!import.meta.env.DEV || !DEV_NO_AUTO_SYNC)
-            ) {
+            if (syncState.value?.is_syncing === false && (!import.meta.env.DEV || !DEV_NO_AUTO_SYNC)) {
                 startSync();
             } else {
                 getStatsRanges();
@@ -103,11 +93,7 @@ export const useSession = defineStore("session", () => {
                 const state = toSyncState(JSON.parse(msg.data));
 
                 // If we just finished our onboaring sync, mark it so onboaring doesn't start again!
-                if (
-                    false === user.value?.is_onboarded &&
-                    syncState.value?.is_syncing &&
-                    false === state.is_syncing
-                ) {
+                if (false === user.value?.is_onboarded && syncState.value?.is_syncing && false === state.is_syncing) {
                     user.value.is_onboarded = true;
                 }
 
@@ -126,9 +112,7 @@ export const useSession = defineStore("session", () => {
 
                     if (state.synced_from && state.synced_to) {
                         // Auto-fetch the newly-synced runs (up to 4 weeks if this was a first-time sync).
-                        let from = Temporal.Instant.from(state.synced_from).toZonedDateTimeISO(
-                            "UTC",
-                        );
+                        let from = Temporal.Instant.from(state.synced_from).toZonedDateTimeISO("UTC");
                         const to = Temporal.Instant.from(state.synced_to).toZonedDateTimeISO("UTC");
 
                         if (from.until(to).days > syncSizeInDays) {
@@ -155,10 +139,7 @@ export const useSession = defineStore("session", () => {
     }
 
     async function getNotableRuns() {
-        notableRuns.value = toNotableRuns(
-            (await api.get("/runs/notable")).data,
-            user.value!.distance_unit,
-        );
+        notableRuns.value = toNotableRuns((await api.get("/runs/notable")).data, user.value!.distance_unit);
     }
 
     function _set_goals(goalDTOs: GoalDTO[]) {
@@ -192,10 +173,7 @@ export const useSession = defineStore("session", () => {
         goals.value.splice(goals.value.indexOf(goal), 1);
     }
 
-    async function getRuns(
-        from: Temporal.ZonedDateTime,
-        to: Temporal.ZonedDateTime,
-    ): Promise<boolean> {
+    async function getRuns(from: Temporal.ZonedDateTime, to: Temporal.ZonedDateTime): Promise<boolean> {
         from = from.round({ smallestUnit: "second" });
         to = to.round({ smallestUnit: "second" });
 
@@ -236,12 +214,15 @@ export const useSession = defineStore("session", () => {
         const toTimestamp =
             runs.value.length > 0
                 ? runs.value.reduce((min, cur) =>
-                      Temporal.ZonedDateTime.compare(cur.start_time, min.start_time) < 0
-                          ? cur
-                          : min,
+                      Temporal.ZonedDateTime.compare(cur.start_time, min.start_time) < 0 ? cur : min,
                   ).start_time
                 : Temporal.Now.zonedDateTimeISO("UTC");
         return await getRuns(toTimestamp.subtract({ days: syncSizeInDays }), toTimestamp);
+    }
+
+    async function getTestTile(x: number, y: number, z: number): Promise<string> {
+        const data = (await api.get(`/heatmap/${z}/${x}/${y}.png`, { responseType: "blob" })).data;
+        return URL.createObjectURL(data);
     }
 
     return {
@@ -260,5 +241,6 @@ export const useSession = defineStore("session", () => {
         getRuns,
         getPreviousRuns,
         statsRanges,
+        getTestTile,
     };
 });

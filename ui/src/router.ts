@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 import GoalPage from "./pages/GoalPage.vue";
-import HeatmapPage from "./pages/HeatmapPage.vue";
+import HeatmapTileTestPage from "./pages/HeatmapTileTestPage.vue";
 import HomePage from "./pages/HomePage.vue";
 import NotableRunsPage from "./pages/NotableRunsPage.vue";
 import RouteNotFoundPage from "./pages/RouteNotFoundPage.vue";
@@ -36,7 +36,7 @@ export const router = createRouter({
         },
         {
             path: "/heatmap",
-            component: HeatmapPage,
+            component: HeatmapTileTestPage,
         },
         { path: "/runs/notable", component: NotableRunsPage },
         { path: "/:pathMatch(.*)*", name: "404", component: RouteNotFoundPage },
