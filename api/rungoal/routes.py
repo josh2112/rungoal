@@ -180,6 +180,6 @@ def get_runs(
 
 
 @api.get("/heatmap/{z}/{x}/{y}.png")
-def get_heatmap_tile(db: DepDb, user: DepUser, z: int, x: int, y: int):
-    buf = build_heatmap_tile(db, user, z, x, y)
+async def get_heatmap_tile(db: DepDb, user: DepUser, z: int, x: int, y: int):
+    buf = await build_heatmap_tile(db, user, z, x, y)
     return Response(content=buf, media_type="image/png")
