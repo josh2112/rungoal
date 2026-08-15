@@ -39,20 +39,21 @@ def make_blob():
 
 def try_heatmap():
     pw, ph = 32, 32
-    img = Image.new("I", (256, 256), 0)
+    img = Image.new("I", (48, 32), 0)
     point = Image.open("assets/heatmap-point.png").resize((pw, ph)).convert("I")
 
-    for x, y in ((112, 112), (112, 144), (144, 112), (144, 144)):
+    for x, y in ((16, 16), (32, 16)):
         crop = img.crop((x - pw / 2, y - ph / 2, x + pw / 2, y + ph / 2))
-        merged_layers = Image.merge("I;16", (crop, point))
-        added_crop = ImageMath.lambda_eval .eval("A + B", A=crop, B=point)
+        added_crop = ImageMath.unsafe_eval("A+B", A=crop, B=point)
         img.paste(added_crop, (x, y))
 
     vmax = cast(int, img.getextrema()[1])
-    print(vmax)
+    scale = 255.0 / vmax
+    print(scale)
 
-    # img.point( lambda v: )
-    # img.show()
+    img = img.point(lambda v: v * scale, mode="F")
+    print(img.getextrema()[1])
+    img.show()
 
 
 try_heatmap()
