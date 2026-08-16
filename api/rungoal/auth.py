@@ -2,7 +2,7 @@ import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException, Query, status
 from fastapi.requests import Request
 from fastapi.security.utils import get_authorization_scheme_param
 from google_auth_oauthlib.flow import Flow
@@ -71,7 +71,7 @@ def refresh_token_decode(token: str) -> RefreshToken:
     )
 
 
-async def dep_bearer_token(request: Request) -> AccessToken:
+def dep_bearer_token(request: Request) -> AccessToken:
     """A FastAPI dependency to extract & return the bearer authorization from
     a request"""
     authorization = request.headers.get("Authorization")
@@ -81,6 +81,15 @@ async def dep_bearer_token(request: Request) -> AccessToken:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
+        )
+    return access_token_decode(token)
+
+
+def dep_query_token(token: str | None = Query(None)) -> AccessToken:
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
         )
     return access_token_decode(token)
 

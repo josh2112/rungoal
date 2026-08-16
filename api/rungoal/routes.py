@@ -10,7 +10,7 @@ from jose import JWTError
 
 from rungoal import auth, crud
 
-from .deps import DepDb, DepUser
+from .deps import DepDb, DepUser, DepUserFromQueryToken
 from .google import GoogleHealthClient
 from .heatmap import build_heatmap_tile
 from .models import (
@@ -180,6 +180,6 @@ def get_runs(
 
 
 @api.get("/heatmap/{z}/{x}/{y}.png")
-async def get_heatmap_tile(db: DepDb, user: DepUser, z: int, x: int, y: int):
+async def get_heatmap_tile(db: DepDb, user: DepUserFromQueryToken, z: int, x: int, y: int):
     buf = await build_heatmap_tile(db, user, z, x, y)
     return Response(content=buf, media_type="image/png")

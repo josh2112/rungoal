@@ -2,6 +2,7 @@ import asyncio
 import io
 import time
 from collections.abc import Sequence
+from math import ceil
 from typing import cast
 
 import mercantile
@@ -15,9 +16,14 @@ _trackpoint_cache: dict[int, Sequence[tuple[float, float]]] = {}
 _cache_locks: dict[int, asyncio.Lock] = {}
 _meta_lock = asyncio.Lock()
 
+_point_img_cache: dict[int, Image.Image] = {
+    256: Image.open("assets/heatmap-point.png").convert("I")
+}
 
 # Based on max 100 trackpoints on a single spot at zoom level 15
 _heatmap_scale_factor = {i: 100 * (2.0 ** (15 - i)) for i in range(21)}
+
+_lut = Image.open("assets/heatmap-lut.png").tobytes()
 
 
 async def _get_user_trackpoints_cached(user_id: int, db: Session) -> Sequence[tuple[float, float]]:
@@ -55,53 +61,71 @@ def heatmap(
     ty: int,
     tz: int,
     pts: Sequence[tuple[float, float]],
-    img_size: tuple[int, int] = (256, 256),
+    img_size: int = 256,
     point_size: int = 16,
 ) -> Image.Image:
+    print(f"Heatmap {tz}/{tx}/{ty} start")
     t = time.time()
-    pw, ph = point_size, point_size
-    img = Image.new("I", img_size, 0)
-    point = Image.open("assets/heatmap-point.png").resize((pw, ph)).convert("I")
+
+    img = Image.new("I", (img_size + point_size * 2, img_size + point_size * 2), 0)
+
+    if point_size not in _point_img_cache:
+        _point_img_cache[point_size] = _point_img_cache[256].resize((point_size, point_size))
+    img_point = _point_img_cache[point_size]
 
     bbox = mercantile.bounds(tx, ty, tz)
+
+    # Pad the bounding box
+    bbox_w = bbox.east - bbox.west
+    bbox_h = bbox.north - bbox.south
+    pad_factor = ceil(point_size / img_size) * 2
+    bbox = mercantile.LngLatBbox(
+        west=bbox.west - pad_factor * bbox_w,
+        south=bbox.south - pad_factor * bbox_h,
+        east=bbox.east + pad_factor * bbox_w,
+        north=bbox.north + pad_factor * bbox_h,
+    )
 
     bbox_w_factor, bbox_h_factor = (
         img.width / (bbox.east - bbox.west),
         img.height / (bbox.north - bbox.south),
     )
 
+    point_radius = point_size / 2
+
+    print(f"  Heatmap {tz}/{tx}/{ty} bbox:", time.time() - t)
+
     for lat, lon in pts:
         if not (bbox.west <= lon <= bbox.east) or not (bbox.south <= lat <= bbox.north):
             continue
 
         x, y = (
-            int((lon - bbox.west) * bbox_w_factor - pw / 2),
-            int(img.height - (lat - bbox.south) * bbox_h_factor - ph / 2),
+            int((lon - bbox.west) * bbox_w_factor - point_radius),
+            int(img.height - (lat - bbox.south) * bbox_h_factor - point_radius),
         )
 
-        crop = img.crop((x, y, x + pw, y + ph))
-        added_crop = ImageMath.lambda_eval(lambda _: _["a"] + _["b"], a=crop, b=point)
+        crop = img.crop((x, y, x + point_size, y + point_size))
+        added_crop = ImageMath.lambda_eval(lambda _: _["a"] + _["b"], a=crop, b=img_point)
         img.paste(added_crop, (x, y))
 
-    img = img.point(lambda v: v / _heatmap_scale_factor[tz]).convert(mode="L")
-    print("Make heatmap:", time.time() - t)
-    return img
+    print(f"  Heatmap {tz}/{tx}/{ty} splat points:", time.time() - t)
 
+    img = (
+        img.crop((point_size, point_size, img_size - point_size * 2, img_size - point_size * 2))
+        .point(lambda v: v / _heatmap_scale_factor[tz])
+        .convert(mode="L")
+        .convert("P")
+    )
+    img.putpalette(_lut, "RGBA")
 
-def recolor(img: Image.Image):
-    t = time.time()
-    img = img.convert("P")
-    lut = Image.open("assets/heatmap-lut.png")
-    img.putpalette(lut.tobytes(), "RGBA")
-
-    print("Recolor:", time.time() - t)
+    print(f"Heatmap {tz}/{tx}/{ty} scale/crop/recolor:", time.time() - t)
     return img
 
 
 async def build_heatmap_tile(db: Session, user: RequestUser, z: int, x: int, y: int):
     trackpoints = await _get_user_trackpoints_cached(user.id, db)
 
-    img = recolor(heatmap(x, y, z, trackpoints))
+    img = heatmap(x, y, z, trackpoints)
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")

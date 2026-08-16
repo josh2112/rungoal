@@ -2,11 +2,12 @@
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { onMounted, ref, watch } from "vue";
-import { authenticatedTileLayer } from "../composables/maplayer";
 import { navbarState } from "../models/misc";
+import { useApi } from "../stores/api";
 import { useSession } from "../stores/session";
 
 const session = useSession();
+const api = useApi();
 
 const map = ref<L.Map>();
 
@@ -26,14 +27,14 @@ onMounted(() => {
 });
 
 const installMapLayer = () => {
-    /* L.tileLayer(`${import.meta.env.BASE_URL.replace(/\/$/, "")}/api/heatmap/{z}/{x}/{y}.png`, {
+    L.tileLayer(`${import.meta.env.BASE_URL.replace(/\/$/, "")}/api/heatmap/{z}/{x}/{y}.png?token=${api.accessToken}`, {
         maxZoom: 19,
-        opacity: 0.7, // Lets the background map show through nicely
-    }).addTo(map);*/
-    authenticatedTileLayer({
-        maxZoom: 19,
-        opacity: 0.7, // Lets the background map show through nicely
+        opacity: 0.7,
     }).addTo(map.value!);
+    /*authenticatedTileLayer({
+        maxZoom: 19,
+        opacity: 0.7,
+    }).addTo(map.value!);*/
 };
 
 watch(
