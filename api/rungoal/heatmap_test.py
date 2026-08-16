@@ -3,19 +3,15 @@ from collections.abc import Sequence
 from math import sqrt
 from typing import cast
 
-from mercantile import LngLatBbox
+import mercantile
 from PIL import Image, ImageMath
 from sqlmodel import col, select
 
 from .database import get_db
 from .models import Run, TrackPoint
 
-bbox = LngLatBbox(
-    west=-80.650634765625,
-    south=35.137879119634185,
-    east=-80.6396484375,
-    north=35.146862906756304,
-)
+# Based on max 100 trackpoints on a single spot at zoom level 15
+_heatmap_scale_factor = {i: 100 * (2.0 ** (15 - i)) for i in range(21)}
 
 
 def get_trackpoints() -> Sequence[tuple[float, float]]:
@@ -42,13 +38,20 @@ def make_blob():
     img.save("assets/heatmap-point.png", "PNG")
 
 
-def heatmap(img_size: tuple[int, int] = (256, 256), point_size: int = 32) -> Image.Image:
+def heatmap(
+    tx: int,
+    ty: int,
+    tz: int,
+    pts: Sequence[tuple[float, float]],
+    img_size: tuple[int, int] = (256, 256),
+    point_size: int = 32,
+) -> Image.Image:
     t = time.time()
     pw, ph = point_size, point_size
     img = Image.new("I", img_size, 0)
     point = Image.open("assets/heatmap-point.png").resize((pw, ph)).convert("I")
 
-    pts = get_trackpoints()
+    bbox = mercantile.bounds(tx, ty, tz)
 
     bbox_w_factor, bbox_h_factor = (
         img.width / (bbox.east - bbox.west),
@@ -59,18 +62,16 @@ def heatmap(img_size: tuple[int, int] = (256, 256), point_size: int = 32) -> Ima
         if not (bbox.west <= lon <= bbox.east) or not (bbox.south <= lat <= bbox.north):
             continue
 
-        px = (lon - bbox.west) * bbox_w_factor
-        py = img.height - (lat - bbox.south) * bbox_h_factor
+        x, y = (
+            int((lon - bbox.west) * bbox_w_factor - pw / 2),
+            int(img.height - (lat - bbox.south) * bbox_h_factor - ph / 2),
+        )
 
-        x, y = int(x - pw / 2), int(y - ph / 2)
         crop = img.crop((x, y, x + pw, y + ph))
-        added_crop = ImageMath.unsafe_eval("A+B", A=crop, B=point)
+        added_crop = ImageMath.lambda_eval(lambda _: _["a"] + _["b"], a=crop, b=point)
         img.paste(added_crop, (x, y))
 
-    vmax = cast(int, img.getextrema()[1])
-    scale = 255.0 / vmax
-
-    img = img.point(lambda v: v * scale).convert(mode="L")
+    img = img.point(lambda v: v / _heatmap_scale_factor[tz]).convert(mode="L")
     print("Make heatmap:", time.time() - t)
     return img
 
@@ -78,13 +79,11 @@ def heatmap(img_size: tuple[int, int] = (256, 256), point_size: int = 32) -> Ima
 def recolor(img: Image.Image):
     t = time.time()
     img = img.convert("P")
-    lut = Image.open("assets/heatmap-lut.png").convert("RGBA")
+    lut = Image.open("assets/heatmap-lut.png")
     img.putpalette(lut.tobytes(), "RGBA")
 
-    img = img.convert("RGBA")
+    img.save("tmp2.png")
     print("Recolor:", time.time() - t)
 
-    img.save("tmp2.png")
 
-
-recolor(heatmap())
+recolor(heatmap(9043, 12963, 15, get_trackpoints()))
