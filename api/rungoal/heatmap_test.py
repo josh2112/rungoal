@@ -1,5 +1,5 @@
-import random
 import time
+from collections.abc import Sequence
 from math import sqrt
 from typing import cast
 
@@ -18,15 +18,18 @@ bbox = LngLatBbox(
 )
 
 
-def get_trackpoints():
+def get_trackpoints() -> Sequence[tuple[float, float]]:
     with get_db() as db:
-        trackpoints = db.exec(
-            select(TrackPoint.lat_deg, TrackPoint.lon_deg)
-            .join(Run, isouter=True)
-            .where(col(TrackPoint.lat_deg).is_not(None))
-            .where(col(TrackPoint.lon_deg).is_not(None))
-            .where(Run.id == 739)
-        ).all()
+        return cast(
+            Sequence[tuple[float, float]],
+            db.exec(
+                select(TrackPoint.lat_deg, TrackPoint.lon_deg)
+                .join(Run, isouter=True)
+                .where(col(TrackPoint.lat_deg).is_not(None))
+                .where(col(TrackPoint.lon_deg).is_not(None))
+                .where(Run.id == 739)
+            ).all(),
+        )
 
 
 def make_blob():
@@ -39,21 +42,26 @@ def make_blob():
     img.save("assets/heatmap-point.png", "PNG")
 
 
-def try_heatmap(img_size: tuple[int, int] = (256, 256), point_size: int = 32):
+def heatmap(img_size: tuple[int, int] = (256, 256), point_size: int = 32) -> Image.Image:
     t = time.time()
     pw, ph = point_size, point_size
     img = Image.new("I", img_size, 0)
     point = Image.open("assets/heatmap-point.png").resize((pw, ph)).convert("I")
 
-    pts = [
-        (
-            random.random() * (img_size[0] - pw) + pw / 2,
-            random.random() * (img_size[1] - ph) + ph / 2,
-        )
-        for _ in range(200)
-    ]
+    pts = get_trackpoints()
 
-    for x, y in pts:
+    bbox_w_factor, bbox_h_factor = (
+        img.width / (bbox.east - bbox.west),
+        img.height / (bbox.north - bbox.south),
+    )
+
+    for lat, lon in pts:
+        if not (bbox.west <= lon <= bbox.east) or not (bbox.south <= lat <= bbox.north):
+            continue
+
+        px = (lon - bbox.west) * bbox_w_factor
+        py = img.height - (lat - bbox.south) * bbox_h_factor
+
         x, y = int(x - pw / 2), int(y - ph / 2)
         crop = img.crop((x, y, x + pw, y + ph))
         added_crop = ImageMath.unsafe_eval("A+B", A=crop, B=point)
@@ -63,23 +71,20 @@ def try_heatmap(img_size: tuple[int, int] = (256, 256), point_size: int = 32):
     scale = 255.0 / vmax
 
     img = img.point(lambda v: v * scale).convert(mode="L")
-    print("Elapsed", time.time() - t)
-    img.save("tmp.png", "PNG")
+    print("Make heatmap:", time.time() - t)
+    return img
 
 
-def recolor():
-    img = Image.open("tmp.png")
-    data = Image.open("assets/heatmap-lut.png").get_flattened_data()
-    r_channel = [pixel[0] for pixel in data]
-    g_channel = [pixel[1] for pixel in data]
-    b_channel = [pixel[2] for pixel in data]
-    a_channel = [pixel[3] for pixel in data]
+def recolor(img: Image.Image):
+    t = time.time()
+    img = img.convert("P")
+    lut = Image.open("assets/heatmap-lut.png").convert("RGBA")
+    img.putpalette(lut.tobytes(), "RGBA")
 
-    correct_flat_lut = r_channel + g_channel + b_channel + a_channel
+    img = img.convert("RGBA")
+    print("Recolor:", time.time() - t)
 
-    img = img.point(correct_flat_lut, mode="RGBA")
     img.save("tmp2.png")
 
 
-# try_heatmap()
-recolor()
+recolor(heatmap())
