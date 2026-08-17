@@ -178,9 +178,13 @@ class RunBase(SQLModel):
     distance_millimeters: int
     average_pace_seconds_per_meter: float
     active_duration: float
+    bbox_text: str | None
 
 
 class RunResponse(RunBase):
+    class Config:
+        arbitrary_types_allowed = True
+
     id: Annotated[str, BeforeValidator(lambda id: sqids.encode([id]))]
     weather: WeatherResponse | None = None
     split_stats: list["RunSplitStatsResponse"]

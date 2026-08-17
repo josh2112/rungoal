@@ -261,6 +261,7 @@ def sync_runtracker(
                         recording_method=RecordingMethod.MANUAL,
                         device_type=None,
                         device_name=None,
+                        bbox_text=None,
                     )
 
                 except Exception as e:

@@ -1,3 +1,5 @@
+import { wktToGeoJSON } from "betterknown";
+import { type Polygon } from "geojson";
 import { Temporal } from "temporal-polyfill";
 import {
     distanceAbbr,
@@ -41,13 +43,27 @@ interface RunDTO {
     split_stats: RunSplitStats[];
     device_type?: "WATCH" | "PHONE";
     location?: RunLocation;
+    bbox_text?: string;
 }
 
-export interface Run extends Omit<RunDTO, "start_time" | "active_duration"> {
+export interface Run extends Omit<RunDTO, "start_time" | "active_duration" | "bbox_text"> {
     start_time: Temporal.ZonedDateTime;
     active_duration: Temporal.Duration;
     distance: number;
     average_pace: Temporal.Duration;
+    bbox?: [number, number, number, number] | undefined;
+}
+
+function bboxFromPolygonWKT(wkt: string | undefined): [number, number, number, number] | undefined {
+    const poly = (wkt ? (wktToGeoJSON(wkt) ?? undefined) : undefined) as Polygon | undefined;
+    if (!poly || !poly.coordinates?.[0]) return undefined;
+
+    const boundary = poly.coordinates[0];
+
+    const lons = boundary.map((c) => c[0]);
+    const lats = boundary.map((c) => c[1]);
+
+    return [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)];
 }
 
 export const toRun = (dto: RunDTO, distUnit: DistanceUnit): Run => ({
@@ -63,6 +79,7 @@ export const toRun = (dto: RunDTO, distUnit: DistanceUnit): Run => ({
     ).round({
         largestUnit: "minute",
     }),
+    bbox: bboxFromPolygonWKT(dto.bbox_text),
 });
 
 type NotableType =

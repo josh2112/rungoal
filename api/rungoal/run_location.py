@@ -15,6 +15,7 @@ GRID_SIZE = 0.05
 class OverpassClient(httpx.Client):
     def __init__(self, *args, **kwargs):
         kwargs.setdefault("base_url", "https://overpass-api.de/api")
+        # kwargs.setdefault("base_url", "https://overpass.private.coffee/api")
         kwargs.setdefault("transport", RetryTransport())
         kwargs.setdefault("timeout", httpx.Timeout(120.0, connect=30.0))
         kwargs.setdefault("headers", {"user-agent": "rungoal/1.0.0"})
@@ -129,6 +130,8 @@ def sync_locations(
 
         possible_locations: list[RunLocationWithBoundary] = []
         run_bbox = BoundingBox.from_points(positions)
+
+        run.bbox_text = run_bbox.to_wkt()
 
         for rl in run_locations:
             points = [p for poly in rl.boundary.polygons for p in poly]
