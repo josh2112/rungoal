@@ -1,3 +1,4 @@
+import type { AxiosResponse } from "axios";
 import L from "leaflet";
 import { useApi } from "../stores/api";
 
@@ -18,13 +19,13 @@ export class AuthenticatedTileLayer extends L.TileLayer {
 
         this.api
             .get(url, { responseType: "blob" })
-            .then((response) => {
+            .then((response: AxiosResponse) => {
                 // Create a local object URL for the image blob and assign it
                 const objectUrl = URL.createObjectURL(response.data);
                 img.src = objectUrl;
                 done(undefined, img);
             })
-            .catch((error) => {
+            .catch((error: Error) => {
                 done(error, img);
             });
 
