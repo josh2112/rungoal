@@ -1,8 +1,6 @@
 import asyncio
 import io
-import time
 from collections.abc import Sequence
-from math import ceil
 from typing import cast
 
 import mercantile
@@ -64,8 +62,6 @@ def heatmap(
     img_size: int = 256,
     point_size: int = 16,
 ) -> Image.Image:
-    print(f"Heatmap {tz}/{tx}/{ty} start")
-    t = time.time()
 
     img = Image.new("I", (img_size + point_size * 2, img_size + point_size * 2), 0)
 
@@ -78,7 +74,7 @@ def heatmap(
     # Pad the bounding box
     bbox_w = bbox.east - bbox.west
     bbox_h = bbox.north - bbox.south
-    pad_factor = ceil(point_size / img_size) * 2
+    pad_factor = point_size / img_size
     bbox = mercantile.LngLatBbox(
         west=bbox.west - pad_factor * bbox_w,
         south=bbox.south - pad_factor * bbox_h,
@@ -93,8 +89,6 @@ def heatmap(
 
     point_radius = point_size / 2
 
-    print(f"  Heatmap {tz}/{tx}/{ty} bbox:", time.time() - t)
-
     for lat, lon in pts:
         if not (bbox.west <= lon <= bbox.east) or not (bbox.south <= lat <= bbox.north):
             continue
@@ -108,17 +102,13 @@ def heatmap(
         added_crop = ImageMath.lambda_eval(lambda _: _["a"] + _["b"], a=crop, b=img_point)
         img.paste(added_crop, (x, y))
 
-    print(f"  Heatmap {tz}/{tx}/{ty} splat points:", time.time() - t)
-
     img = (
-        img.crop((point_size, point_size, img_size - point_size * 2, img_size - point_size * 2))
+        img.crop((point_size, point_size, img_size + point_size, img_size + point_size))
         .point(lambda v: v / _heatmap_scale_factor[tz])
-        .convert(mode="L")
         .convert("P")
     )
     img.putpalette(_lut, "RGBA")
 
-    print(f"Heatmap {tz}/{tx}/{ty} scale/crop/recolor:", time.time() - t)
     return img
 
 
