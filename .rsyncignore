@@ -1,6 +1,7 @@
 /.env
 /client_secrets.json
 /data
+/cache
 
 .venv/
 /run-nfsn.sh

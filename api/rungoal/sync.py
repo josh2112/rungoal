@@ -13,6 +13,8 @@ from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session, col, delete, select
 
+from rungoal import heatmap
+
 from .google import GoogleHealthClient
 from .import_runtracker import RuntrackerGoal
 from .models import (
@@ -117,6 +119,10 @@ def sync_runs(
         raise
 
     updated_runs = _update_runs(client.db, runs, span)
+
+    if updated_runs:
+        heatmap.invalidate_cache(cast(int, client.user.id))
+
     if do_trackpoints:
         sync_tcx(client, progress, updated_runs, output)
         sync_split_stats(client.db, progress, updated_runs)

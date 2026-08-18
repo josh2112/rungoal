@@ -5,6 +5,7 @@ from typing import Annotated, Any
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Cookie, Query, Request, Response, status
+from fastapi.responses import FileResponse
 from fastapi.sse import EventSourceResponse
 from jose import JWTError
 
@@ -12,7 +13,7 @@ from rungoal import auth, crud
 
 from .deps import DepDb, DepUser, DepUserFromQueryToken
 from .google import GoogleHealthClient
-from .heatmap import build_heatmap_tile
+from .heatmap import CACHE_DIR, build_heatmap_tile
 from .models import (
     AccessToken,
     GoalCreate,
@@ -181,5 +182,12 @@ def get_runs(
 
 @api.get("/heatmap/{z}/{x}/{y}.png")
 async def get_heatmap_tile(db: DepDb, user: DepUserFromQueryToken, z: int, x: int, y: int):
-    buf = await build_heatmap_tile(db, user, z, x, y)
+    tile_path = CACHE_DIR / str(user.id) / str(z) / str(x) / f"{y}.png"
+    if tile_path.exists():
+        return FileResponse(tile_path, media_type="image/png")
+
+    buf = await build_heatmap_tile(db, user.id, z, x, y)
+    tile_path.parent.mkdir(parents=True, exist_ok=True)
+    tile_path.write_bytes(buf)
+
     return Response(content=buf, media_type="image/png")

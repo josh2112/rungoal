@@ -1,13 +1,17 @@
 import asyncio
 import io
+import shutil
 from collections.abc import Sequence
+from pathlib import Path
 from typing import cast
 
 import mercantile
 from PIL import Image, ImageMath
 from sqlmodel import Session, col, select
 
-from .models import RequestUser, Run, TrackPoint
+from .models import Run, TrackPoint
+
+CACHE_DIR = Path("../cache/heatmap_tiles")
 
 # Based on max 100 trackpoints on a single spot at zoom level 15
 _heatmap_scale_factor = {i: 100 * (2.0 ** (15 - i)) for i in range(21)}
@@ -128,13 +132,18 @@ def heatmap(
     return img
 
 
-async def build_heatmap_tile(db: Session, user: RequestUser, z: int, x: int, y: int):
-    trackpoints = await _get_user_trackpoints_cached(user.id, db)
+async def build_heatmap_tile(db: Session, user_id: int, z: int, x: int, y: int):
+    trackpoints = await _get_user_trackpoints_cached(user_id, db)
     splat = await _get_splat_cached(16)
 
     img = heatmap(z, x, y, trackpoints, splat)
 
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    buf.seek(0)
-    return buf.getvalue()
+    with io.BytesIO() as buf:
+        img.save(buf, format="PNG")
+        buf.seek(0)
+        return buf.getvalue()
+
+
+def invalidate_cache(user_id: int):
+    if (cache_dir := CACHE_DIR / str(user_id)).exists():
+        shutil.rmtree(cache_dir)
