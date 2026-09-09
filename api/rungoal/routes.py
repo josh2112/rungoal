@@ -17,6 +17,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import FileResponse
+from fastapi.security.utils import get_authorization_scheme_param
 from fastapi.sse import EventSourceResponse
 from jose import JWTError
 
@@ -211,7 +212,12 @@ def google_health_webhook(
     authorization: Annotated[str | None, Header()] = None,
 ):
     if "type" in payload and payload["type"] == "verification":
-        if authorization == "EkE3ZibMkH4snCqnHsjpHNJM_mPHZpdNnSXes-85MGo":
+        scheme, token = get_authorization_scheme_param(authorization)
+        if (
+            scheme
+            and scheme.lower() == "bearer"
+            and token == "EkE3ZibMkH4snCqnHsjpHNJM_mPHZpdNnSXes-85MGo"
+        ):
             return status.HTTP_201_CREATED
         else:
             raise HTTPException(
