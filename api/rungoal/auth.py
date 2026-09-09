@@ -1,9 +1,9 @@
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Annotated
 
-from fastapi import HTTPException, Query, status
-from fastapi.requests import Request
+from fastapi import Header, HTTPException, Query, status
 from fastapi.security.utils import get_authorization_scheme_param
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
@@ -71,10 +71,9 @@ def refresh_token_decode(token: str) -> RefreshToken:
     )
 
 
-def dep_bearer_token(request: Request) -> AccessToken:
+def dep_bearer_token(authorization: Annotated[str | None, Header()] = None) -> AccessToken:
     """A FastAPI dependency to extract & return the bearer authorization from
     a request"""
-    authorization = request.headers.get("Authorization")
     scheme, token = get_authorization_scheme_param(authorization)
     if not authorization or scheme.lower() != "bearer":
         raise HTTPException(

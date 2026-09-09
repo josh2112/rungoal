@@ -1,10 +1,21 @@
 import asyncio
+import json
 from collections.abc import AsyncIterable, Callable, Sequence
 from datetime import UTC, datetime
 from typing import Annotated, Any
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Cookie, Query, Request, Response, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Cookie,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    status,
+)
 from fastapi.responses import FileResponse
 from fastapi.sse import EventSourceResponse
 from jose import JWTError
@@ -191,3 +202,37 @@ async def get_heatmap_tile(db: DepDb, user: DepUserFromQueryToken, z: int, x: in
     tile_path.write_bytes(buf)
 
     return Response(content=buf, media_type="image/png")
+
+
+@api.post("/webhooks/google-health")
+def google_health_webhook(
+    payload: dict,
+    background_tasks: BackgroundTasks,
+    authorization: Annotated[str | None, Header()] = None,
+):
+    if "type" in payload and payload["type"] == "verification":
+        if authorization == "EkE3ZibMkH4snCqnHsjpHNJM_mPHZpdNnSXes-85MGo":
+            return status.HTTP_201_CREATED
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Missing or invalid verification secret",
+            )
+
+    # JAF TEST - we should get something like this:
+    # {
+    #     "message": {
+    #         "data": "eyJ1c2VySWQiOiAiZ29vZ2xlLXVzZXItMTIzIiwgImRhdGFUeXBlIjogImV4ZXJjaXNlIn0=",
+    #         "messageId": "21152815435043792",
+    #         "message_id": "21152815435043792",
+    #         "publishTime": "2026-09-09T18:45:27.882Z",
+    #         "publish_time": "2026-09-09T18:45:27.882Z"
+    #     },
+    #     "subscription": "projects/rungoal-dev/subscriptions/health-events-subscription"
+    # }
+    # message.data = {"userId": "google-user-123", "dataType": "exercise"}
+
+    with open("/var/tmp/GOOGLE_PUBSUB_TEST.txt", "a") as f:
+        f.write("=============================\n")
+        json.dump(payload, f, indent=4)
+        f.write("\n")
