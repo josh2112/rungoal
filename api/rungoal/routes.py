@@ -141,9 +141,9 @@ async def get_sync_stream(user: DepUser) -> AsyncIterable[SyncState]:
 
 
 @api.post("/sync")
-def start_sync(user: DepUser, params: SyncRequest):
+async def start_sync(user: DepUser, params: SyncRequest):
     params.include_runtracker = False
-    sync_start(
+    await sync_start(
         user.id,
         params,
         ZoneInfo(user.timezone),

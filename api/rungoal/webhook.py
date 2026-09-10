@@ -66,7 +66,7 @@ async def _proceess_webhook_notifications(notifications: list[WebhookNotificatio
                 logger.info(f"Syncing interval {interval.startTime} -> {interval.endTime}")
                 if sync_op := get_sync_operation(user_id):
                     await sync_op.done.wait()
-                if sync_op := sync_start(
+                if sync_op := await sync_start(
                     user_id,
                     SyncRequest(
                         from_=interval.startTime, to=interval.endTime, include_runtracker=False

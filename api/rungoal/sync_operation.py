@@ -146,7 +146,7 @@ def sync_status(user_id: int) -> SyncState:
 
 
 # Starts a sync, if one is not already in progress for this user.
-def sync_start(user_id: int, params: SyncRequest, timezone: ZoneInfo) -> SyncOperation | None:
+async def sync_start(user_id: int, params: SyncRequest, timezone: ZoneInfo) -> SyncOperation | None:
     if user_id not in _syncs_in_progress:
         op = SyncOperation(
             SyncParams(
