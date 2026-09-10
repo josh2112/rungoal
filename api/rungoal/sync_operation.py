@@ -18,7 +18,7 @@ from .settings import settings
 from .sync import sync_runs
 from .utils import ProgressProtocol, TimeRange
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("uvicorn.error")
 
 
 class SyncTasks(StrEnum):
@@ -102,6 +102,7 @@ _syncs_in_progress: dict[int, "SyncOperation"] = {}
 class SyncOperation:
     def __init__(self, params: SyncParams):
         self.progress = WebProgress()
+        self.done = asyncio.Event()
         asyncio.create_task(self._run_sync(params))
 
     def _run_sync_thread(self, params: SyncParams):
@@ -133,6 +134,7 @@ class SyncOperation:
             await asyncio.sleep(0.2)  # Give the sync-complete message a chance to be sent
             # Notify everyone we're complete
             del _syncs_in_progress[params.user_id]
+            self.done.set()
 
 
 # Returns the status of the current sync operation. If no sync
@@ -143,10 +145,10 @@ def sync_status(user_id: int) -> SyncState:
     return _syncs_in_progress[user_id].progress.state
 
 
-# Starts a sync, if one is not already in progress.
-async def sync_start(user_id: int, params: SyncRequest, timezone: ZoneInfo):
+# Starts a sync, if one is not already in progress for this user.
+def sync_start(user_id: int, params: SyncRequest, timezone: ZoneInfo) -> SyncOperation | None:
     if user_id not in _syncs_in_progress:
-        _syncs_in_progress[user_id] = SyncOperation(
+        op = SyncOperation(
             SyncParams(
                 user_id=user_id,
                 from_=params.from_,
@@ -155,6 +157,12 @@ async def sync_start(user_id: int, params: SyncRequest, timezone: ZoneInfo):
                 timezone=timezone,
             )
         )
+        _syncs_in_progress[user_id] = op
+        return op
+
+
+def get_sync_operation(user_id: int) -> SyncOperation | None:
+    return _syncs_in_progress.get(user_id)
 
 
 # Returns the sync progress stream. If no sync is in progress, returns

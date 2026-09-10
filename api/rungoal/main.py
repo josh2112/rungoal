@@ -11,12 +11,7 @@ from .settings import settings
 
 # ================ Init ================
 
-logging.basicConfig(
-    level=logging.WARNING,
-    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
-)
-
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("uvicorn.error")
 
 with open("pyproject.toml", "rb") as f:
     metadata = tomllib.load(f)["project"]

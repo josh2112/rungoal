@@ -177,6 +177,11 @@ class GoogleHealthClient(httpx.Client):
             case _:
                 self.user.temperature_unit = None
 
+    def get_identity(self) -> str:
+        response = self.get("identity")
+        response.raise_for_status()
+        return response.json()["healthUserId"]
+
     def _run_from_data_point(self, dp: dict, output: Path | None = None) -> Run:
         data_source_id = dp["name"].split("/")[-1]
         ex = dp["exercise"]
@@ -217,4 +222,5 @@ class GoogleHealthClient(httpx.Client):
             avg_ground_contact_time_duration=float(tmp[:-1])
             if (tmp := mobMet.get("avgGroundContactTimeDuration"))
             else None,
+            bbox_text=None,
         )

@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from collections.abc import AsyncIterable, Callable, Sequence
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Annotated, Any
 from zoneinfo import ZoneInfo
 
@@ -38,6 +38,11 @@ from .models import (
     sqids,
 )
 from .sync_operation import SyncState, sync_start, sync_status, sync_stream
+from .webhook import (
+    WebhookNotification,
+    WebhookSubscriptionVerification,
+    process_webhook_request,
+)
 
 
 class RungoalRouter(APIRouter):
@@ -53,7 +58,6 @@ api = RungoalRouter(prefix="/api")
 used_refresh_tokens = auth.UsedRefreshTokens()
 
 logger = logging.getLogger("uvicorn.error")
-logger.info("READY STEADY")
 
 
 # Generates a new token pair for the given email address, sets the refresh
@@ -87,6 +91,7 @@ def google_auth(
     # Update with user settings from Fitbit
     with GoogleHealthClient(user, db) as client:
         client.update_user_settings()
+        user.health_user_id = client.get_identity()
 
     db.commit()
 
@@ -136,15 +141,14 @@ async def get_sync_stream(user: DepUser) -> AsyncIterable[SyncState]:
 
 
 @api.post("/sync")
-async def start_sync(user: DepUser, params: SyncRequest):
-    params.from_ = datetime(2026, 7, 22, tzinfo=UTC)
+def start_sync(user: DepUser, params: SyncRequest):
     params.include_runtracker = False
-    await sync_start(
+    sync_start(
         user.id,
         params,
         ZoneInfo(user.timezone),
     )
-    return status.HTTP_202_ACCEPTED
+    return Response(status_code=status.HTTP_202_ACCEPTED)
 
 
 @api.get("/goals")
@@ -167,7 +171,7 @@ def update_goal(db: DepDb, user: DepUser, goal_id: str, goal: GoalUpdate) -> lis
 @api.delete("/goals/{goal_id}")
 def delete_goal(db: DepDb, user: DepUser, goal_id: str):
     crud.delete_goal(db, user.id, sqids.decode(goal_id)[0])
-    return status.HTTP_200_OK
+    return Response(status_code=status.HTTP_200_OK)
 
 
 @api.get("/stats")
@@ -208,42 +212,8 @@ async def get_heatmap_tile(db: DepDb, user: DepUserFromQueryToken, z: int, x: in
 
 @api.post("/webhooks/google-health")
 async def google_health_webhook(
-    request: Request,
+    payload: WebhookSubscriptionVerification | list[WebhookNotification],
     background_tasks: BackgroundTasks,
     authorization: Annotated[str | None, Header()] = None,
 ):
-    # if "type" in payload and payload["type"] == "verification":
-    #    scheme, token = get_authorization_scheme_param(authorization)
-    #    if (
-    #        scheme
-    #        and scheme.lower() == "bearer"
-    #        and token == "EkE3ZibMkH4snCqnHsjpHNJM_mPHZpdNnSXes-85MGo"
-    #    ):
-    #        return status.HTTP_201_CREATED
-    #    else:
-    #        raise HTTPException(
-    #            status_code=status.HTTP_401_UNAUTHORIZED,
-    #            detail="Missing or invalid verification secret",
-    #        )
-
-    # JAF TEST - we should get something like this:
-    # {
-    #     "message": {
-    #         "data": "eyJ1c2VySWQiOiAiZ29vZ2xlLXVzZXItMTIzIiwgImRhdGFUeXBlIjogImV4ZXJjaXNlIn0=",
-    #         "messageId": "21152815435043792",
-    #         "message_id": "21152815435043792",
-    #         "publishTime": "2026-09-09T18:45:27.882Z",
-    #         "publish_time": "2026-09-09T18:45:27.882Z"
-    #     },
-    #     "subscription": "projects/rungoal-dev/subscriptions/health-events-subscription"
-    # }
-    # message.data = {"userId": "google-user-123", "dataType": "exercise"}
-
-    try:
-        body = await request.body()
-        logger.info(f"Google Health webhook received: {body.decode('utf-8')}")
-    except Exception as e:
-        logger.error(f"Error reading Google Health webhook body: {e}")
-        return status.HTTP_400_BAD_REQUEST
-
-    return status.HTTP_204_NO_CONTENT
+    return process_webhook_request(payload, background_tasks, authorization)

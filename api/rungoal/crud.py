@@ -45,6 +45,10 @@ def get_user_by_email(db: Session, email: str) -> User | None:
     return db.exec(select(User).where(User.email == email)).one_or_none()
 
 
+def get_user_by_health_id(db: Session, health_user_id: str) -> User | None:
+    return db.exec(select(User).where(User.health_user_id == health_user_id)).one_or_none()
+
+
 def create_user(db: Session, user: UserWithGoogleCreds) -> User:
     # Make a User out of this so we can get the ID
     return _add_record(db, User(**user.model_dump()))

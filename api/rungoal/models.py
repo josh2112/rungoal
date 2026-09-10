@@ -70,6 +70,7 @@ class UserWithGoogleCreds(SQLModel):
             EncryptedType(sa.Unicode, settings.GOOGLE_REFRESH_TOKEN_KEY, AesEngine, "pkcs5")
         )
     )
+    health_user_id: str | None = None
     distance_unit: DistanceUnit | None = Field(sa_column=sa.Column(SQLEnum(DistanceUnit)))
     temperature_unit: TemperatureUnit | None = Field(sa_column=sa.Column(SQLEnum(TemperatureUnit)))
 

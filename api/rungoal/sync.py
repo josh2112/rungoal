@@ -40,7 +40,7 @@ from .utils import ProgressProtocol, TimeRange
 # off and report as a regular exercise.
 _RUN_FETCH_DAYS = timedelta(days=10)
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("uvicorn.error")
 
 
 # Syncs runs from Google Health to the database for the given time range. Existing runs will only
