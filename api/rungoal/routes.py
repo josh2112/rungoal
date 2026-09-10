@@ -1,5 +1,5 @@
 import asyncio
-import json
+import logging
 from collections.abc import AsyncIterable, Callable, Sequence
 from datetime import UTC, datetime
 from typing import Annotated, Any
@@ -10,14 +10,12 @@ from fastapi import (
     BackgroundTasks,
     Cookie,
     Header,
-    HTTPException,
     Query,
     Request,
     Response,
     status,
 )
 from fastapi.responses import FileResponse
-from fastapi.security.utils import get_authorization_scheme_param
 from fastapi.sse import EventSourceResponse
 from jose import JWTError
 
@@ -53,6 +51,9 @@ class RungoalRouter(APIRouter):
 api = RungoalRouter(prefix="/api")
 
 used_refresh_tokens = auth.UsedRefreshTokens()
+
+logger = logging.getLogger("uvicorn.error")
+logger.info("READY STEADY")
 
 
 # Generates a new token pair for the given email address, sets the refresh
@@ -206,24 +207,24 @@ async def get_heatmap_tile(db: DepDb, user: DepUserFromQueryToken, z: int, x: in
 
 
 @api.post("/webhooks/google-health")
-def google_health_webhook(
-    payload: dict,
+async def google_health_webhook(
+    request: Request,
     background_tasks: BackgroundTasks,
     authorization: Annotated[str | None, Header()] = None,
 ):
-    if "type" in payload and payload["type"] == "verification":
-        scheme, token = get_authorization_scheme_param(authorization)
-        if (
-            scheme
-            and scheme.lower() == "bearer"
-            and token == "EkE3ZibMkH4snCqnHsjpHNJM_mPHZpdNnSXes-85MGo"
-        ):
-            return status.HTTP_201_CREATED
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Missing or invalid verification secret",
-            )
+    # if "type" in payload and payload["type"] == "verification":
+    #    scheme, token = get_authorization_scheme_param(authorization)
+    #    if (
+    #        scheme
+    #        and scheme.lower() == "bearer"
+    #        and token == "EkE3ZibMkH4snCqnHsjpHNJM_mPHZpdNnSXes-85MGo"
+    #    ):
+    #        return status.HTTP_201_CREATED
+    #    else:
+    #        raise HTTPException(
+    #            status_code=status.HTTP_401_UNAUTHORIZED,
+    #            detail="Missing or invalid verification secret",
+    #        )
 
     # JAF TEST - we should get something like this:
     # {
@@ -238,7 +239,11 @@ def google_health_webhook(
     # }
     # message.data = {"userId": "google-user-123", "dataType": "exercise"}
 
-    with open("/var/tmp/GOOGLE_PUBSUB_TEST.txt", "a") as f:
-        f.write("=============================\n")
-        json.dump(payload, f, indent=4)
-        f.write("\n")
+    try:
+        body = await request.body()
+        logger.info(f"Google Health webhook received: {body.decode('utf-8')}")
+    except Exception as e:
+        logger.error(f"Error reading Google Health webhook body: {e}")
+        return status.HTTP_400_BAD_REQUEST
+
+    return status.HTTP_204_NO_CONTENT
