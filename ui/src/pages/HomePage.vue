@@ -39,14 +39,6 @@ onMounted(() => {
                 style="height: 35px"
             >
                 <h5 class="mb-0 text-nowrap">Runs</h5>
-                <RouterLink to="/heatmap">
-                    <i class="bi bi-map"></i>
-                    Heatmap
-                </RouterLink>
-                <RouterLink v-if="false == session.syncState?.is_syncing" to="/runs/notable">
-                    <i class="bi bi-award"></i>
-                    Notable runs
-                </RouterLink>
                 <SyncView v-if="session.syncState" :sync-state="session.syncState" />
             </div>
 

@@ -20,6 +20,7 @@ watch(
 );
 
 import { useDark, useMutationObserver } from "@vueuse/core";
+import BottomNavBarView from "./components/BottomNavBarView.vue";
 
 const isDark = useDark({
     // 1. Tell VueUse to target the 'data-bs-theme' attribute instead of a class
@@ -60,11 +61,11 @@ useMutationObserver(
 
     <OnboardingDialog ref="onboardingGoalDialogRef" />
 
-    <main>
-        <img href="12/1130/1620"/>
-        
+    <main style="padding-bottom: 72px">
         <RouterView />
     </main>
 
     <ErrorsList />
+
+    <BottomNavBarView />
 </template>
